@@ -61,6 +61,7 @@ int main()
 	if (list.length == 0)
 	{
 		puts("ERROR: Failed to parse JSON");
+		getchar();
 		return EXIT_FAILURE;
 	}
 
@@ -310,6 +311,6 @@ int main()
 	}
 	
 	printf("program ended successfully\npress enter to continue . . . ");
-	{ int key = getchar(); }
+	getchar();
 	return EXIT_SUCCESS;
 }
