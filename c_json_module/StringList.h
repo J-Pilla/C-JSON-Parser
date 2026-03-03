@@ -8,8 +8,8 @@ typedef struct StringList
 } StringList;
 
 StringList* SLConstructor();
-void SLDestructor(StringList* list);
+int SLDestructor(StringList* list);
 const char* SLGetter(StringList* list, int index);
 int SLSetter(StringList* list, char* value, int index);
-void SLPush(StringList* list, char* value);
+int SLPush(StringList* list, char* value);
 int SLPop(StringList* list);

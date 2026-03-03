@@ -1,10 +1,12 @@
 #include "StringList.h"
 
 #include <assert.h>
-#include <conio.h>
+#include <malloc.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
 
 struct SLNode
 {
@@ -23,8 +25,11 @@ StringList* SLConstructor()
 	return list;
 }
 
-void SLDestructor(StringList* list)
+int SLDestructor(StringList* list)
 {
+	if (list == NULL)
+		return EXIT_FAILURE;
+
 	SLNode* node = list->firstNode;
 
 	while (node)
@@ -35,6 +40,8 @@ void SLDestructor(StringList* list)
 	}
 
 	list->length = 0;
+
+	return EXIT_SUCCESS;
 }
 
 const char* SLGetter(StringList* list, int index)
@@ -67,6 +74,7 @@ int SLSetter(StringList* list, char* value, int index)
 		free(node->value);
 
 	node->value = (char*)malloc(strlen(value) + 1);
+	assert(node->value);
 
 	for (int index = 0; index <= strlen(value); index++)
 		node->value[index] = value[index];
@@ -74,8 +82,11 @@ int SLSetter(StringList* list, char* value, int index)
 	return EXIT_SUCCESS;
 }
 
-void SLPush(StringList* list, char* value)
+int SLPush(StringList* list, char* value)
 {
+	if (list == NULL)
+		return EXIT_FAILURE;
+
 	SLNode* builder = malloc(sizeof(SLNode));
 	assert(builder);
 
@@ -94,6 +105,8 @@ void SLPush(StringList* list, char* value)
 		list->firstNode = builder;
 
 	list->length++;
+
+	return EXIT_SUCCESS;
 }
 
 int SLPop(StringList* list)
@@ -122,7 +135,7 @@ int SLPop(StringList* list)
 
 static int errorOutOfBounds()
 {
-	printf("\nError: out of bounds of the list\npress any key to continue . . . ");
-	_getch();
+	printf("\nError: out of bounds of the list\npress enter to continue . . . ");
+	getchar();
 	return EXIT_FAILURE;
 }
