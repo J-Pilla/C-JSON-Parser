@@ -21,4 +21,4 @@ typedef struct ObjectList
 
 ObjectList ParseJSON(const char* file);
 const JSONObject* GetObject(const ObjectList* list, const int index);
-void FreeObjectList(ObjectList* list);
+int FreeObjectList(ObjectList* list);

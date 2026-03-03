@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
+
 #define EMPTY_OBJECT_LIST (ObjectList){ ((void *)0), 0 }
 
 struct OLNode
@@ -24,15 +27,15 @@ typedef uint8_t Type;
 #define Boolean 5
 
 static char* fileToString(const char*);
-static void pushListObject(ObjectList*, const JSONObject*);
-static void pushDepth(Type**, Type, int*);
-static void popDepth(Type**, int*);
-static void allocateObject(JSONObject**);
-static void allocateInput(char**, size_t);
-static void setValue(char**, JSONObject*, int*);
-static void setValueTrue(JSONObject*, int*);
-static void setValueFalse(JSONObject*, int*);
-static void freeObject(JSONObject*);
+static int pushListObject(ObjectList*, const JSONObject*);
+static int pushDepth(Type**, Type, int*);
+static int popDepth(Type**, int*);
+static int allocateObject(JSONObject**);
+static int allocateInput(char**, size_t);
+static int setValue(char**, JSONObject*, int*);
+static int setValueTrue(JSONObject*, int*);
+static int setValueFalse(JSONObject*, int*);
+static int freeObject(JSONObject*);
 
 ObjectList ParseJSON(const char* file)
 {
@@ -292,8 +295,11 @@ const JSONObject* GetObject(const ObjectList* list, int index)
 	return &currentNode->value;
 }
 
-void FreeObjectList(ObjectList* list)
+int FreeObjectList(ObjectList* list)
 {
+	if (list->firstNode == NULL)
+		return EXIT_FAILURE;
+
 	OLNode* node = list->firstNode;
 
 	while (node != NULL)
@@ -317,6 +323,8 @@ void FreeObjectList(ObjectList* list)
 	}
 
 	list->length = 0;
+
+	return EXIT_SUCCESS;
 }
 
 static char* fileToString(const char* file)
@@ -417,8 +425,11 @@ static char* fileToString(const char* file)
 	return string;
 }
 
-static void pushListObject(ObjectList* list, const JSONObject* object)
+static int pushListObject(ObjectList* list, const JSONObject* object)
 {
+	if (list == NULL || object == NULL)
+		return EXIT_FAILURE;
+
 	OLNode* builder = malloc(sizeof(OLNode));
 	assert(builder);
 
@@ -437,10 +448,15 @@ static void pushListObject(ObjectList* list, const JSONObject* object)
 		list->firstNode = builder;
 
 	list->length++;
+
+	return EXIT_SUCCESS;
 }
 
-static void pushDepth(Type** array, Type attribute, int* depth)
+static int pushDepth(Type** array, Type attribute, int* depth)
 {
+	if (array == NULL || depth == NULL)
+		return EXIT_FAILURE;
+	
 	(*depth)++;
 
 	if (*array == NULL)
@@ -456,10 +472,15 @@ static void pushDepth(Type** array, Type attribute, int* depth)
 	}
 
 	(*array)[(*depth) - 1] = attribute;
+
+	return EXIT_SUCCESS;
 }
 
-static void popDepth(Type** array, int* depth)
+static int popDepth(Type** array, int* depth)
 {
+	if (array == NULL || depth == NULL || depth == 0)
+		return EXIT_FAILURE;
+
 	(*depth)--;
 
 	if (depth > 0)
@@ -473,10 +494,15 @@ static void popDepth(Type** array, int* depth)
 		free(*array);
 		*array = NULL;
 	}
+
+	return EXIT_SUCCESS;
 }
 
-static void allocateObject(JSONObject** currentObject)
+static int allocateObject(JSONObject** currentObject)
 {
+	if (currentObject == NULL || *currentObject == NULL)
+		return EXIT_FAILURE;
+
 	(*currentObject)->objectCount++;
 
 	if ((*currentObject)->objects == NULL)
@@ -494,10 +520,15 @@ static void allocateObject(JSONObject** currentObject)
 	(*currentObject)->objects[(*currentObject)->objectCount - 1] = (JSONObject){ NULL, 0, NULL, *currentObject };
 	(*currentObject)->objects[(*currentObject)->objectCount - 1].values = SLConstructor();
 	*currentObject = &(*currentObject)->objects[(*currentObject)->objectCount - 1];
+
+	return EXIT_SUCCESS;
 }
 
-static void allocateInput(char** input, size_t count)
+static int allocateInput(char** input, size_t count)
 {
+	if (input == NULL)
+		return EXIT_FAILURE;
+
 	if (*input == NULL)
 	{
 		*input = calloc(count + 1, sizeof(char));
@@ -508,18 +539,28 @@ static void allocateInput(char** input, size_t count)
 		assert(temp);
 		*input = temp;
 	}
+
+	return EXIT_SUCCESS;
 }
 
-static void setValue(char** input, JSONObject* value, int* count)
+static int setValue(char** input, JSONObject* value, int* count)
 {
+	if (input == NULL || count == NULL)
+		return EXIT_FAILURE;
+
 	(*input)[*count] = '\0';
 	SLPush(value->values, *input);
 	*input = NULL;
 	*count = 0;
+
+	return EXIT_SUCCESS;
 }
 
-static void setValueTrue(JSONObject* object, int* cursor)
+static int setValueTrue(JSONObject* object, int* cursor)
 {
+	if (object == NULL || cursor == NULL)
+		return EXIT_FAILURE;
+
 	char* input = calloc(sizeof("true"), sizeof(char));
 	assert(input);
 	input[0] = 't';
@@ -529,10 +570,15 @@ static void setValueTrue(JSONObject* object, int* cursor)
 	input[4] = '\0';
 	SLPush(object->values, input);
 	(*cursor) += 3;
+
+	return EXIT_SUCCESS;
 }
 
-static void setValueFalse(JSONObject* object, int* cursor)
+static int setValueFalse(JSONObject* object, int* cursor)
 {
+	if (object == NULL || cursor == NULL)
+		return EXIT_FAILURE;
+
 	char* input = calloc(sizeof("false"), sizeof(char));
 	assert(input);
 	input[0] = 'f';
@@ -543,10 +589,15 @@ static void setValueFalse(JSONObject* object, int* cursor)
 	input[5] = '\0';
 	SLPush(object->values, input);
 	(*cursor) += 4;
+
+	return EXIT_SUCCESS;
 }
 
-static void freeObject(JSONObject* object)
+static int freeObject(JSONObject* object)
 {
+	if (object == NULL)
+		return EXIT_FAILURE;
+
 	for (int index = 0; index < object->objectCount; index++)
 	{
 		if (object->objects != NULL)
@@ -558,4 +609,6 @@ static void freeObject(JSONObject* object)
 	object->objects = NULL;
 
 	SLDestructor(object->values);
+
+	return EXIT_SUCCESS;
 }
