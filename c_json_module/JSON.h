@@ -8,7 +8,7 @@ typedef struct JSONObject
 {
 	struct JSONObject* objects;
 	int objectCount;
-	StringList* values;
+	StringList values;
 	struct JSONObject* parent;
 } JSONObject;
 

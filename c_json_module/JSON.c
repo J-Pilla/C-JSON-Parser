@@ -85,8 +85,7 @@ ObjectList ParseJSON(const char* file)
 	ObjectList list = { NULL, 0 };
 
 	// an object to build the current node
-	JSONObject builder = { NULL, 0, NULL, NULL };
-	builder.values = SLConstructor();
+	JSONObject builder = { NULL, 0, SLConstruct(), NULL};
 	char* strInput = NULL;
 
 	JSONObject* currentObject = &builder;
@@ -266,8 +265,7 @@ ObjectList ParseJSON(const char* file)
 		if (depth == ROOT && JSON[cursor] == ',')
 		{
 			pushListObject(&list, &builder);
-			builder = (JSONObject){ NULL, 0, NULL, NULL };
-			builder.values = SLConstructor();
+			builder = (JSONObject){ NULL, 0, SLConstruct(), NULL};
 			currentObject = &builder;
 			pushDepth(&depthTypes, Object, &depth);
 			cursor++;
@@ -298,7 +296,7 @@ int FreeObjectList(ObjectList* list)
 		free(node->value.objects);
 		node->value.objects = NULL;
 
-		SLDestructor(node->value.values);
+		SLFreeList(&node->value.values);
 
 		free(node);
 		node = list->firstNode;
@@ -462,7 +460,7 @@ static int freeObject(JSONObject* object)
 	free(object->objects);
 	object->objects = NULL;
 
-	SLDestructor(object->values);
+	SLFreeList(&object->values);
 
 	return EXIT_SUCCESS;
 }
@@ -532,8 +530,7 @@ static int allocateObject(JSONObject** currentObject)
 		(*currentObject)->objects = temp;
 	}
 
-	(*currentObject)->objects[(*currentObject)->objectCount - 1] = (JSONObject){ NULL, 0, NULL, *currentObject };
-	(*currentObject)->objects[(*currentObject)->objectCount - 1].values = SLConstructor();
+	(*currentObject)->objects[(*currentObject)->objectCount - 1] = (JSONObject){ NULL, 0, SLConstruct(), *currentObject};
 	*currentObject = &(*currentObject)->objects[(*currentObject)->objectCount - 1];
 
 	return EXIT_SUCCESS;
@@ -564,7 +561,7 @@ static int setValue(char** input, JSONObject* value, int* count)
 		return EXIT_FAILURE;
 
 	(*input)[*count] = '\0';
-	SLPush(value->values, *input);
+	SLPush(&value->values, *input);
 	*input = NULL;
 	*count = 0;
 
@@ -583,7 +580,7 @@ static int setValueTrue(JSONObject* object, int* cursor)
 	input[2] = 'u';
 	input[3] = 'e';
 	input[4] = '\0';
-	SLPush(object->values, input);
+	SLPush(&object->values, input);
 	(*cursor) += 3;
 
 	return EXIT_SUCCESS;
@@ -602,7 +599,7 @@ static int setValueFalse(JSONObject* object, int* cursor)
 	input[3] = 's';
 	input[4] = 'e';
 	input[5] = '\0';
-	SLPush(object->values, input);
+	SLPush(&object->values, input);
 	(*cursor) += 4;
 
 	return EXIT_SUCCESS;

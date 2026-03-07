@@ -88,34 +88,34 @@ int main()
 		const JSONObject* attributes = &currentObject->objects[6];
 
 		// string pointers
-		const char* name = SLGetter(currentObject->values, 1);
-		const char* helm = SLGetter(armorObject->values, 0);
-		const char* armor = SLGetter(armorObject->values, 1);
-		const char* gauntlets = SLGetter(armorObject->values, 2);
-		const char* leggings = SLGetter(armorObject->values, 3);
+		const char* name = SLGetString(&currentObject->values, 1);
+		const char* helm = SLGetString(&armorObject->values, 0);
+		const char* armor = SLGetString(&armorObject->values, 1);
+		const char* gauntlets = SLGetString(&armorObject->values, 2);
+		const char* leggings = SLGetString(&armorObject->values, 3);
 
 		// integer assignment
-		npc->id = atoi(SLGetter(currentObject->values, 0));
-		npc->level = atoi(SLGetter(currentObject->values, 2));
+		npc->id = atoi(SLGetString(&currentObject->values, 0));
+		npc->level = atoi(SLGetString(&currentObject->values, 2));
 
 		// count assignment
-		npc->weapons.rHandCount = rHand->values->length;
-		npc->weapons.lHandCount = lHand->values->length;
-		npc->arrowCount = arrows->values->length;
-		npc->boltCount = bolts->values->length;
-		npc->spellCount = spells->values->length;
-		npc->itemCount = items->values->length;
+		npc->weapons.rHandCount = rHand->values.length;
+		npc->weapons.lHandCount = lHand->values.length;
+		npc->arrowCount = arrows->values.length;
+		npc->boltCount = bolts->values.length;
+		npc->spellCount = spells->values.length;
+		npc->itemCount = items->values.length;
 
 		// attribute assignment
-		npc->attributes.vigor = atoi(SLGetter(attributes->values, 0));
-		npc->attributes.attunement = atoi(SLGetter(attributes->values, 1));
-		npc->attributes.endurance = atoi(SLGetter(attributes->values, 2));
-		npc->attributes.vitality = atoi(SLGetter(attributes->values, 3));
-		npc->attributes.strength = atoi(SLGetter(attributes->values, 4));
-		npc->attributes.dexterity = atoi(SLGetter(attributes->values, 5));
-		npc->attributes.intelligence = atoi(SLGetter(attributes->values, 6));
-		npc->attributes.faith = atoi(SLGetter(attributes->values, 7));
-		npc->attributes.luck = atoi(SLGetter(attributes->values, 8));
+		npc->attributes.vigor = atoi(SLGetString(&attributes->values, 0));
+		npc->attributes.attunement = atoi(SLGetString(&attributes->values, 1));
+		npc->attributes.endurance = atoi(SLGetString(&attributes->values, 2));
+		npc->attributes.vitality = atoi(SLGetString(&attributes->values, 3));
+		npc->attributes.strength = atoi(SLGetString(&attributes->values, 4));
+		npc->attributes.dexterity = atoi(SLGetString(&attributes->values, 5));
+		npc->attributes.intelligence = atoi(SLGetString(&attributes->values, 6));
+		npc->attributes.faith = atoi(SLGetString(&attributes->values, 7));
+		npc->attributes.luck = atoi(SLGetString(&attributes->values, 8));
 
 		// malloc
 		npc->name = (char*)calloc(strlen(name), sizeof(char));
@@ -161,7 +161,7 @@ int main()
 		// rHandWeapons
 		for (int weaponIndex = 0; weaponIndex < npc->weapons.rHandCount; weaponIndex++)
 		{
-			const char* weapon = SLGetter(rHand->values, weaponIndex);
+			const char* weapon = SLGetString(&rHand->values, weaponIndex);
 			npc->weapons.rHand[weaponIndex] = (char*)calloc(strlen(weapon), sizeof(char));
 			assert(npc->weapons.rHand[weaponIndex]);
 			for (int letter = 0; letter <= strlen(weapon); letter++)
@@ -173,7 +173,7 @@ int main()
 		// lHandWeapons
 		for (int weaponIndex = 0; weaponIndex < npc->weapons.lHandCount; weaponIndex++)
 		{
-			const char* weapon = SLGetter(lHand->values, weaponIndex);
+			const char* weapon = SLGetString(&lHand->values, weaponIndex);
 			npc->weapons.lHand[weaponIndex] = (char*)calloc(strlen(weapon), sizeof(char));
 			assert(npc->weapons.lHand[weaponIndex]);
 			for (int letter = 0; letter <= strlen(weapon); letter++)
@@ -203,7 +203,7 @@ int main()
 		// arrows
 		for (int arrowIndex = 0; arrowIndex < npc->arrowCount; arrowIndex++)
 		{
-			const char* arrow = SLGetter(arrows->values, arrowIndex);
+			const char* arrow = SLGetString(&arrows->values, arrowIndex);
 			npc->arrows[arrowIndex] = (char*)calloc(strlen(arrow), sizeof(char));
 			assert(npc->arrows[arrowIndex]);
 			for (int letter = 0; letter <= strlen(arrow); letter++)
@@ -215,7 +215,7 @@ int main()
 		// bolts
 		for (int boltIndex = 0; boltIndex < npc->boltCount; boltIndex++)
 		{
-			const char* bolt = SLGetter(bolts->values, boltIndex);
+			const char* bolt = SLGetString(&bolts->values, boltIndex);
 			npc->bolts[boltIndex] = (char*)calloc(strlen(bolt), sizeof(char));
 			assert(npc->bolts[boltIndex]);
 			for (int letter = 0; letter <= strlen(bolt); letter++)
@@ -227,7 +227,7 @@ int main()
 		// spells
 		for (int spellIndex = 0; spellIndex < npc->spellCount; spellIndex++)
 		{
-			const char* spell = SLGetter(spells->values, spellIndex);
+			const char* spell = SLGetString(&spells->values, spellIndex);
 			npc->spells[spellIndex] = (char*)calloc(strlen(spell), sizeof(char));
 			assert(npc->spells[spellIndex]);
 			for (int letter = 0; letter <= strlen(spell); letter++)
@@ -239,7 +239,7 @@ int main()
 		// items
 		for (int itemIndex = 0; itemIndex < npc->itemCount; itemIndex++)
 		{
-			const char* item = SLGetter(items->values, itemIndex);
+			const char* item = SLGetString(&items->values, itemIndex);
 			npc->items[itemIndex] = (char*)calloc(strlen(item), sizeof(char));
 			assert(npc->items[itemIndex]);
 			for (int letter = 0; letter <= strlen(item); letter++)
