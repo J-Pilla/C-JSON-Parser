@@ -8,24 +8,15 @@
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 
-struct SLNode
+typedef struct SLNode
 {
 	char* value;
-	SLNode* link;
-};
+	struct SLNode* link;
+} SLNode;
 
 static int errorOutOfBounds();
 
-StringList* SLConstructor()
-{
-	StringList* list = (StringList*)malloc(sizeof(list));
-	assert(list);
-	list->firstNode = NULL;
-	list->length = 0;
-	return list;
-}
-
-int SLDestructor(StringList* list)
+int SLFreeList(StringList* list)
 {
 	if (list == NULL)
 		return EXIT_FAILURE;
@@ -44,7 +35,7 @@ int SLDestructor(StringList* list)
 	return EXIT_SUCCESS;
 }
 
-const char* SLGetter(StringList* list, int index)
+const char* SLGetString(StringList* list, int index)
 {
 	if (index < 0 || index >= list->length)
 	{
@@ -60,7 +51,7 @@ const char* SLGetter(StringList* list, int index)
 	return node->value;
 }
 
-int SLSetter(StringList* list, char* value, int index)
+int SLSetString(StringList* list, char* value, int index)
 {
 	if (index < 0 || index >= list->length)
 		return errorOutOfBounds();
@@ -135,7 +126,8 @@ int SLPop(StringList* list)
 
 static int errorOutOfBounds()
 {
-	printf("\nError: out of bounds of the list\npress enter to continue . . . ");
+	puts("Error: out of bounds of the list");
+	printf("press enter to continue . . . ");
 	getchar();
 	return EXIT_FAILURE;
 }

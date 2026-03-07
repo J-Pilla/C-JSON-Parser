@@ -1,15 +1,17 @@
 #pragma once
-typedef struct SLNode SLNode;
 
 typedef struct StringList
 {
-	SLNode* firstNode;
+	struct SLNode* firstNode;
 	int length;
 } StringList;
 
-StringList* SLConstructor();
-int SLDestructor(StringList* list);
-const char* SLGetter(StringList* list, int index);
-int SLSetter(StringList* list, char* value, int index);
+
+#define EMPTY_STRING_LIST (StringList){ ((void *)0), 0 }
+
+inline StringList SLConstruct() { return EMPTY_STRING_LIST; }
+int SLFreeList(StringList* list);
+const char* SLGetString(StringList* list, int index);
+int SLSetString(StringList* list, char* value, int index);
 int SLPush(StringList* list, char* value);
 int SLPop(StringList* list);
