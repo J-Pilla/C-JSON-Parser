@@ -20,7 +20,7 @@ typedef struct SMNode
 	struct SMNode* link;
 } SMNode;
 
-static int error(char*);
+static int error(const char*);
 inline static void pause();
 
 int SMFreeMap(StringMap* this)
@@ -166,7 +166,7 @@ int SMRemove(StringMap* this, const char* key)
 	return SUCCESS;
 }
 
-static int error(char* error)
+static int error(const char* error)
 {
 	if (error == NULL)
 		error = "Error";
