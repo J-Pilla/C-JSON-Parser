@@ -8,121 +8,260 @@
 #include <stdio.h>
 #include <string.h>
 
-#define EXIT_SUCCESS 0
-#define EXIT_FAILURE 1
+#define SUCCESS 0
+#define FAILURE 1
 
-#define EMPTY_OBJECT_LIST (ObjectList){ ((void *)0), 0 }
+#define ERROR_PARAM_NULL "NULL pointer passed"
+#define ERROR_FILE_OPEN "unable to open file"
+#define ERROR_FILE_FORMAT "file cannot be parsed"
+#define ERROR_FILE_CLOSE "unable to close file"
+#define ERROR_FILE_EMPTY "file empty"
+#define ERROR_OUT_OF_BOUNDS "out of bounds of the this"
+#define ERROR_LIST_EMPTY "list is empty"
+#define ERROR_KEY_NOT_FOUND "key not found in this"
+#define ERROR_KEY_EXISTS "key already exists in this"
+#define ERROR_MAP_EMPTY "map is empty"
+#define ERROR_ARRAY_EMPTY "array is empty"
 
-struct OLNode
+typedef struct JSONObjectList ObjectList;
+#define EMPTY_O_LIST (ObjectList){ NULL, 0 }
+
+typedef struct JSONArrayList ArrayList;
+#define EMPTY_A_LIST (ArrayList){ NULL, 0 }
+
+typedef struct JSONObjectMap ObjectMap;
+#define EMPTY_O_MAP (ObjectMap){ NULL }
+
+typedef struct JSONArrayMap ArrayMap;
+#define EMPTY_A_MAP (ArrayMap){ NULL }
+
+typedef struct JSONObject Object;
+#define EMPTY_OBJECT (Object)	\
+{								\
+	EMPTY_O_MAP,				\
+	EMPTY_A_MAP,				\
+	EMPTY_STRING_MAP,			\
+	NULL						\
+}								\
+
+typedef struct JSONArray Array;
+#define EMPTY_ARRAY (Array)	\
+{								\
+	EMPTY_O_LIST,				\
+	EMPTY_A_LIST,				\
+	EMPTY_STRING_LIST,			\
+	NULL						\
+}								\
+
+typedef struct OLNode
 {
-	JSONObject value;
-	OLNode* link;
-};
+	Object value;
+	struct OLNode* next;
+} OLNode;
+
+typedef struct ALNode
+{
+	Array value;
+	struct OLNode* next;
+} ALNode;
+
+typedef struct OMNode
+{
+	char* key;
+	Object value;
+	struct OMNode* next;
+} OMNode;
+
+typedef struct AMNode
+{
+	char* key;
+	Array value;
+	struct AMNode* next;
+} AMNode;
 
 typedef uint8_t Type;
-#define Object 1
-#define Array 2
-#define String 3
-#define Number 4
-#define Boolean 5
+#define OBJECT 1
+#define ARRAY 2
+#define STRING 3
+#define NUMBER 4
+#define BOOLEAN 5
 
-static char* fileToString(const char*);
+static char* fileToString(const char* const);
 
-static int pushListObject(ObjectList*, const JSONObject*);
+// object list functions
+static int freeObjectList(ObjectList*);
+static int objectListPush(ObjectList*, Object);
 
-static int pushDepth(Type**, Type, int*);
-static int popDepth(Type**, int*);
+// array list functions
+static int freeArrayList(ArrayList*);
+static int arrayListPush(ArrayList*, Array);
 
-static int allocateObject(JSONObject**);
-static int freeObject(JSONObject*);
+// object map functions
+static int freeObjectMap(ObjectMap*);
+static int objectMapAdd(ObjectMap*, Object, const char*);
 
-static int allocateInput(char**, size_t);
-static int setValue(char**, JSONObject*, int*);
-static int setValueTrue(JSONObject*, int*);
-static int setValueFalse(JSONObject*, int*);
+// array map functions
+static int freeArrayMap(ArrayMap*);
+static int arrayMapAdd(ArrayMap*, Array, const char*);
 
-ObjectList ParseJSON(const char* file)
+// object functions
+static Object* objectAllocateObject(Object*, const char*);
+static Array* objectAllocateArray(Object*, const char*);
+static int freeObject(Object*);
+
+// array functions
+static Object* arrayAllocateObject(Array*);
+static Array* arrayAllocateArray(Array*);
+static int freeArray(Array*);
+
+// key / value functions
+static char* allocateString(const char*, size_t*);
+static char* allocateNumber(const char*, size_t*);
+
+// type functions
+static int pushType(Type**, Type, int*);
+static int popType(Type**, int*);
+
+static int error(const char*);
+inline static void pause();
+
+ObjectList JSONParse(const char* file)
 {
 	char* JSON = fileToString(file);
+	size_t JSONLength = strlen(JSON);
 
 	if (JSON == NULL || sizeof(JSON) < 5)
-		return EMPTY_OBJECT_LIST;
+	{
+		error(ERROR_FILE_FORMAT);
+		return EMPTY_O_LIST;
+	}
 
-	// depth tracks the hiarchy of the JS objects
-	Type* depthTypes = NULL;
-	int depth = 0;
+	// typeStack tracks the hiarchy of the JS objects
+	Type* typeStack = NULL;
+	int stackDepth = 0;
+
 	// cursor walks along JSON
-	int cursor = 0;
+	size_t cursor = 0;
 
-	for (; cursor < strlen(JSON) - 1; cursor++)
+	for (; cursor < JSONLength - 1; cursor++)
 	{
 		// check if the file starts with an array or object
 		if (JSON[cursor] == '[')
 		{
-			pushDepth(&depthTypes, Array, &depth);
+			pushType(&typeStack, ARRAY, &stackDepth);
 
-			if (depth == 2)
+			if (stackDepth == 2)
 				break;
 		}
 		else
 		{
 			if (JSON[cursor] == '{')
 			{
-				pushDepth(&depthTypes, Object, &depth);
+				pushType(&typeStack, OBJECT, &stackDepth);
 				cursor++;
 			}
 			break;
 		}
 	}
 
-	if (depthTypes == NULL || depthTypes[depth - 1] != Object)
+	if (typeStack == NULL || typeStack[stackDepth - 1] != OBJECT)
 	{
 		free(JSON);
-		free(depthTypes);
-		return EMPTY_OBJECT_LIST;
+		free(typeStack);
+		error(ERROR_FILE_FORMAT);
+		return EMPTY_O_LIST;
 	}
 
-	ObjectList list = { NULL, 0 };
+	ObjectList list = EMPTY_O_LIST;
 
 	// an object to build the current node
-	JSONObject builder = { NULL, 0, SLConstruct(), NULL};
-	char* strInput = NULL;
+	Object objectBuilder = EMPTY_OBJECT;
+	Object* currentObject = &objectBuilder;
 
-	JSONObject* currentObject = &builder;
+	// or an array to build the current node
+	Array arrayBuilder = EMPTY_ARRAY;
+	Array* currentArray = &arrayBuilder;
+
+	char* value = NULL;
+
 	// ROOT tracks the base level for objects
-	const int ROOT = depth - 1;
-	// inCount is how many characters in a value
-	int inCount = 0;
+	const int ROOT = stackDepth - 1;
 
-	for (; cursor < strlen(JSON) - 1; cursor++)
+	for (; cursor < JSONLength - 1; cursor++)
 	{
-		switch (depthTypes[depth - 1])
+		if (typeStack[stackDepth - 1] == OBJECT)
 		{
-		case Object:
-			switch (JSON[cursor])
+			char* key = NULL;
+
+			if (JSON[cursor] == '\"') // signs a key
 			{
-			case '\"': // signs a key, keys are ignored
-				cursor++;
-				for (; cursor < strlen(JSON) - 1; cursor++)
+				key = allocateString(JSON, &cursor);
+
+				if (key == NULL)
 				{
-					if (JSON[cursor] == '\"' && JSON[cursor - 1] != '\\')
-						break;
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
 				}
-				break;
-			case ':': // ':' signs a value
-				cursor++;
+
+				cursor += 2;
+
 				switch (JSON[cursor])
 				{
 				case '{':
-					allocateObject(&currentObject);
-					pushDepth(&depthTypes, Object, &depth);
+					currentObject = objectAllocateObject(currentObject, key);
+
+					if (currentObject == NULL)
+					{
+						free(JSON);
+						free(typeStack);
+						freeObjectList(&list);
+						free(key);
+						return EMPTY_O_LIST;
+					}
+
+					pushType(
+						&typeStack,
+						OBJECT,
+						&stackDepth
+					);
+
 					break;
 				case '[':
-					allocateObject(&currentObject);
-					pushDepth(&depthTypes, Array, &depth);
+					currentArray = objectAllocateArray(currentObject, key);
+
+					if (currentArray == NULL)
+					{
+						free(JSON);
+						free(typeStack);
+						freeObjectList(&list);
+						free(key);
+						return EMPTY_O_LIST;
+					}
+
+					pushType(
+						&typeStack,
+						ARRAY,
+						&stackDepth
+					);
+
 					break;
 				case '\"':
-					pushDepth(&depthTypes, String, &depth);
+					SMAdd(
+						&currentObject->values,
+						allocateString(JSON, &cursor),
+						key
+					);
+
+					if (SMGetString(&currentObject->values, key) == NULL)
+					{
+						free(JSON);
+						free(typeStack);
+						freeObjectList(&list);
+						free(key);
+						return EMPTY_O_LIST;
+					}
 					break;
 				case '0':
 				case '1':
@@ -134,36 +273,105 @@ ObjectList ParseJSON(const char* file)
 				case '7':
 				case '8':
 				case '9':
-					pushDepth(&depthTypes, Number, &depth);
-					cursor--;
+					SMAdd(
+						&currentObject->values,
+						allocateNumber(JSON, &cursor),
+						key
+					);
+
+					if (SMGetString(&currentObject->values, key) == NULL)
+					{
+						free(JSON);
+						free(typeStack);
+						freeObjectList(&list);
+						free(key);
+						return EMPTY_O_LIST;
+					}
 					break;
 				case 't':
-					setValueTrue(currentObject, &cursor);
-					break;
 				case 'f':
-					setValueFalse(currentObject, &cursor);
-					break;
+					SMAdd(
+						&currentObject->values,
+						JSON[cursor] == 't' ? "true" : "false",
+						key
+					);
+
+					if (SMGetString(&currentObject->values, key) == NULL)
+					{
+						free(JSON);
+						free(typeStack);
+						freeObjectList(&list);
+						free(key);
+						return EMPTY_O_LIST;
+					}
+
+					cursor += JSON[cursor] == 't' ? 3 : 4;
 				}
-				break;
-			case '}':
-				popDepth(&depthTypes, &depth);
-				currentObject = currentObject->parent;
-				break;
+
+				free(key);
+				key = NULL;
 			}
-			break;
-		case Array:
+			else if (JSON[cursor] == '}')
+			{
+				popType(&typeStack, &stackDepth);
+
+				if (typeStack[stackDepth - 1] == OBJECT)
+					currentObject = currentObject->parent;
+				else
+				{
+					currentArray = currentObject->parent;
+					currentObject = NULL;
+				}
+			}
+		}
+		else // type == array
+		{
 			switch (JSON[cursor])
 			{
 			case '{':
-				allocateObject(&currentObject);
-				pushDepth(&depthTypes, Object, &depth);
+				currentObject = arrayAllocateObject(currentArray);
+
+				if (currentObject == NULL)
+				{
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
+				}
+
+				pushType(
+					&typeStack,
+					OBJECT,
+					&stackDepth
+				);
 				break;
 			case '[':
-				allocateObject(&currentObject);
-				pushDepth(&depthTypes, Array, &depth);
+				currentArray = arrayAllocateArray(currentArray);
+
+				if (currentArray== NULL)
+				{
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
+				}
+
+				pushType(
+					&typeStack,
+					ARRAY,
+					&stackDepth
+				);
 				break;
 			case '\"':
-				pushDepth(&depthTypes, String, &depth);
+				SLPush(&currentArray->values, allocateString(JSON, &cursor));
+
+				if (SLGetString(&currentArray->values, currentArray->values.length - 1) == NULL)
+				{
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
+				}
 				break;
 			case '0':
 			case '1':
@@ -175,158 +383,160 @@ ObjectList ParseJSON(const char* file)
 			case '7':
 			case '8':
 			case '9':
-				pushDepth(&depthTypes, Number, &depth);
-				cursor--;
+				SLPush(&currentArray->values, allocateNumber(JSON, &cursor));
+
+				if (SLGetString(&currentArray->values, currentArray->values.length - 1) == NULL)
+				{
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
+				}
 				break;
 			case 't':
-				setValueTrue(currentObject, &cursor);
-				break;
 			case 'f':
-				setValueFalse(currentObject, &cursor);
+				SLPush(
+					&currentArray->values,
+					JSON[cursor] == 't' ? "true" : "false"
+				);
+
+				if (SLGetString(&currentArray->values, currentArray->values.length - 1) == NULL)
+				{
+					free(JSON);
+					free(typeStack);
+					freeObjectList(&list);
+					return EMPTY_O_LIST;
+				}
+
+				cursor += JSON[cursor] == 't' ? 3 : 4;
 				break;
 			case ']':
-				popDepth(&depthTypes, &depth);
-				currentObject = currentObject->parent;
-				break;
-			}
-			break;
-		case String:
-			allocateInput(&strInput, inCount);
-			switch (JSON[cursor])
-			{
-			case '\\':
-				cursor++;
-				switch (JSON[cursor])
+				popType(&typeStack, &stackDepth);
+
+				if (typeStack[stackDepth - 1] == ARRAY)
+					currentArray = currentArray->parent;
+				else
 				{
-				case 'n':
-					strInput[inCount] = '\n';
-					break;
-				case 'f':
-					strInput[inCount] = '\f';
-					break;
-				case 'r':
-					strInput[inCount] = '\r';
-					break;
-				case '\\':
-					strInput[inCount] = '\\';
-					break;
-				case 'b':
-					strInput[inCount] = '\b';
-					break;
-				case 't':
-					strInput[inCount] = '\t';
-					break;
-				case '\"':
-					strInput[inCount] = '\"';
-					break;
-				case '\'':
-					strInput[inCount] = '\'';
-					break;
-				default:
-					strInput[inCount] = JSON[cursor];
-					// \v and \0 aren't allowed in JSON strings... so wikipedia says
+					currentObject = currentArray->parent;
+					currentArray = NULL;
 				}
-				inCount++;
-				break;
-			case '\"':
-				setValue(&strInput, currentObject, &inCount);
-				popDepth(&depthTypes, &depth);
-				break;
-			default:
-				strInput[inCount] = JSON[cursor];
-				inCount++;
 			}
-			break;
-		case Number:
-			allocateInput(&strInput, inCount);
-			switch (JSON[cursor])
-			{
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-			case '8':
-			case '9':
-				strInput[inCount] = JSON[cursor];
-				inCount++;
-				break;
-			default:
-				setValue(&strInput, currentObject, &inCount);
-				popDepth(&depthTypes, &depth);
-				cursor--;
-			}
-			break;
 		}
 
-		if (depth == ROOT && JSON[cursor] == ',')
+		if (stackDepth == ROOT && JSON[cursor] == ',')
 		{
-			pushListObject(&list, &builder);
-			builder = (JSONObject){ NULL, 0, SLConstruct(), NULL};
-			currentObject = &builder;
-			pushDepth(&depthTypes, Object, &depth);
+			objectListPush(&list, objectBuilder);
+			objectBuilder = EMPTY_OBJECT;
+			currentObject = &objectBuilder;
+			pushType(&typeStack, OBJECT, &stackDepth);
 			cursor++;
 		}
 	}
 
-	pushListObject(&list, &builder);
+	objectListPush(&list, objectBuilder);
 	free(JSON);
+	free(typeStack);
 	return list;
 }
 
-int FreeObjectList(ObjectList* list)
+int JSONFree(JSONObjectList* this) { freeObjectList(this); }
+
+JSONObject* OLGetObject(JSONObjectList* this, int index)
 {
-	if (list->firstNode == NULL)
-		return EXIT_FAILURE;
-
-	OLNode* node = list->firstNode;
-
-	while (node != NULL)
+	if (this == NULL)
 	{
-		list->firstNode = list->firstNode->link;
-
-		for (int index = 0; index < node->value.objectCount; index++)
-		{
-			if (node->value.objects != NULL)
-				freeObject(&node->value.objects[index]);
-		}
-		free(node->value.objects);
-		node->value.objects = NULL;
-
-		SLFreeList(&node->value.values);
-
-		free(node);
-		node = list->firstNode;
+		error(ERROR_PARAM_NULL);
+		return NULL;
 	}
 
-	list->length = 0;
-
-	return EXIT_SUCCESS;
-}
-
-const JSONObject* GetObject(const ObjectList* list, int index)
-{
-	if (index < 0 || index >= list->length)
+	if (index < 0 || index >= this->length)
+	{
+		error(ERROR_OUT_OF_BOUNDS);
 		return NULL;
+	}
 
-	OLNode* currentNode = list->firstNode;
+	OLNode* currentNode = this->first;
 
 	for (int ctr = 0; ctr < index; ctr++)
-		currentNode = currentNode->link;
+		currentNode = currentNode->next;
 
 	return &currentNode->value;
 }
 
-static char* fileToString(const char* file)
+JSONArray* ALGetArray(JSONArrayList* this, int index)
+{
+	if (this == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	if (index < 0 || index >= this->length)
+	{
+		error(ERROR_OUT_OF_BOUNDS);
+		return NULL;
+	}
+
+	ALNode* currentNode = this->first;
+
+	for (int ctr = 0; ctr < index; ctr++)
+		currentNode = currentNode->next;
+
+	return &currentNode->value;
+}
+
+JSONObject* OMGetObject(JSONObjectMap* this, const char* key)
+{
+	if (this == NULL || key == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	OMNode* node = this->first;
+
+	while (node != NULL)
+	{
+		if (strcmp(node->key, key) == 0)
+			return &node->value;
+
+		node = node->next;
+	}
+
+	error(ERROR_KEY_NOT_FOUND);
+	return NULL;
+}
+
+JSONArray* AMGetArray(JSONArrayMap* this, const char* key)
+{
+	if (this == NULL || key == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	AMNode* node = this->first;
+
+	while (node != NULL)
+	{
+		if (strcmp(node->key, key) == 0)
+			return &node->value;
+
+		node = node->next;
+	}
+
+	error(ERROR_KEY_NOT_FOUND);
+	return NULL;
+}
+
+static char* fileToString(const char* const file)
 {
 	FILE* fin = fopen(file, "r");
 
 	if (fin == NULL)
 	{
-		printf("ERROR: unable to open %s\n", file);
+		printf("%s | ", file);
+		error(ERROR_FILE_OPEN);
 		return NULL;
 	}
 
@@ -334,9 +544,13 @@ static char* fileToString(const char* file)
 	assert(buffer);
 
 	const int BUFFER = 80;
-	int characterCount = 0, bufferCount = 0;
-	{ // while loop header
-		int cursor = 0, input, previousInput = 0;
+	int bufferCount = 0;
+
+	size_t cursor = 0, characterCount = 0;
+
+	// while loop header
+	{
+		int previousInput = 0;
 		bool isInString = false;
 		while (!feof(fin))
 		{
@@ -345,28 +559,24 @@ static char* fileToString(const char* file)
 				buffer[bufferCount][cursor] = '\0';
 				bufferCount++;
 				cursor = 0;
-				char** temp = realloc(buffer, sizeof(char*) * (uint64_t)(bufferCount + 1));
+				char** temp = realloc(buffer, sizeof(char*) * (bufferCount + 1));
 				assert(temp);
 				buffer = temp;
 			}
 
 			if (cursor == 0)
 			{
-				buffer[bufferCount] = calloc(BUFFER, sizeof(char));
+				buffer[bufferCount] = malloc(BUFFER);
 				assert(buffer[bufferCount]);
 			}
 
-			input = fgetc(fin);
-			
+			int input = fgetc(fin);
+
 			if ((char)input == '"' && (char)previousInput != '\\')
-			{
 				isInString = !isInString;
-			}
 
 			if (isspace(input) != 0 && !isInString)
-			{
 				continue;
-			}
 
 			previousInput = input;
 			buffer[bufferCount][cursor] = input >= 0 ? (char)input : '\0';
@@ -377,18 +587,20 @@ static char* fileToString(const char* file)
 
 	if (characterCount < 2)
 	{
-		printf("%s is empty", file);
-
 		free(buffer[0]);
 		free(buffer);
 
+		printf("%s | ", file);
+		error(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
 	char* string = calloc(characterCount, sizeof(char));
 	assert(string);
 
-	for (int stringIndex = 0, bufferIndex = 0, cursor = 0;
+	cursor = 0;
+
+	for (int stringIndex = 0, bufferIndex = 0;
 		stringIndex < characterCount;
 		stringIndex++, cursor++)
 	{
@@ -410,197 +622,488 @@ static char* fileToString(const char* file)
 
 	if (fclose(fin) != 0)
 	{
-		printf("ERROR: unable to close %s\n", file);
-
+		printf("%s | ", file);
+		error(ERROR_FILE_CLOSE);
 		return NULL;
 	}
 
 	return string;
 }
 
-static int pushListObject(ObjectList* list, const JSONObject* object)
+// object list functions
+static int freeObjectList(ObjectList* this)
 {
-	if (list == NULL || object == NULL)
-		return EXIT_FAILURE;
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
 
-	OLNode* builder = malloc(sizeof(OLNode));
-	assert(builder);
+	OLNode* node = this->first;
 
-	builder->value = *object;
-	builder->link = NULL;
-
-	if (list->firstNode)
+	while (node != NULL)
 	{
-		OLNode* node = list->firstNode;
-		while (node->link)
-			node = node->link;
+		this->first = this->first->next;
+		freeObject(&node->value);
+		free(node);
+		node = this->first;
+	}
 
-		node->link = builder;
+	this->length = 0;
+
+	return SUCCESS;
+}
+
+static int objectListPush(ObjectList* this, Object object)
+{
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	OLNode* objectBuilder = malloc(sizeof(OLNode));
+	assert(objectBuilder);
+
+	*objectBuilder = (OLNode)
+	{
+		object,
+		NULL
+	};
+
+	if (this->first)
+	{
+		OLNode* node = this->first;
+		while (node->next)
+			node = node->next;
+
+		node->next = objectBuilder;
 	}
 	else
-		list->firstNode = builder;
+		this->first = objectBuilder;
 
-	list->length++;
+	this->length++;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-static int freeObject(JSONObject* object)
+// array list functions
+static int freeArrayList(JSONArrayList* this)
 {
-	if (object == NULL)
-		return EXIT_FAILURE;
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
 
-	for (int index = 0; index < object->objectCount; index++)
+	ALNode* node = this->first;
+
+	while (node != NULL)
 	{
-		if (object->objects != NULL)
-		{
-			freeObject(&object->objects[index]);
-		}
+		this->first = this->first->next;
+		freeArray(&node->value);
+		free(node);
+		node = this->first;
 	}
-	free(object->objects);
-	object->objects = NULL;
 
-	SLFreeList(&object->values);
+	this->length = 0;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-static int pushDepth(Type** array, Type attribute, int* depth)
+static int arrayListPush(ArrayList* this, Array array)
 {
-	if (array == NULL || depth == NULL)
-		return EXIT_FAILURE;
-	
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	ALNode* objectBuilder = malloc(sizeof(ALNode));
+	assert(objectBuilder);
+
+	*objectBuilder = (ALNode)
+	{
+		array,
+		NULL
+	};
+
+	if (this->first)
+	{
+		ALNode* node = this->first;
+		while (node->next)
+			node = node->next;
+
+		node->next = objectBuilder;
+	}
+	else
+		this->first = objectBuilder;
+
+	this->length++;
+
+	return SUCCESS;
+}
+
+// object map functions
+static int freeObjectMap(ObjectMap* this)
+{
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	OMNode* node = this->first;
+
+	while (node != NULL)
+	{
+		this->first = this->first->next;
+		free(node->key);
+		freeObject(&node->value);
+		free(node);
+		node = this->first;
+	}
+
+	return SUCCESS;
+}
+
+static int objectMapAdd(ObjectMap* this, Object value, const char* key)
+{
+	if (this == NULL || key == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	OMNode* objectBuilder = malloc(sizeof(OMNode));
+	assert(objectBuilder);
+
+	size_t size = strlen(key) + 1ull;
+
+	*objectBuilder = (OMNode)
+	{
+		malloc(size),
+		value,
+		NULL
+	};
+	assert(objectBuilder->key);
+
+	strcpy_s(objectBuilder->key, size, key);
+
+	if (this->first != NULL)
+	{
+		OMNode* node = this->first;
+
+		while (node->next != NULL)
+		{
+			if (strcmp(node->key, key) == 0)
+			{
+				free(objectBuilder->key);
+				free(objectBuilder);
+				return error(ERROR_KEY_EXISTS);
+			}
+
+			node = node->next;
+		}
+
+		node->next = objectBuilder;
+	}
+	else
+		this->first = objectBuilder;
+
+	return SUCCESS;
+}
+
+// array map functions
+static int freeArrayMap(ArrayMap* this)
+{
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	AMNode* node = this->first;
+
+	while (node != NULL)
+	{
+		this->first = this->first->next;
+		free(node->key);
+		freeArray(&node->value);
+		free(node);
+		node = this->first;
+	}
+
+	return SUCCESS;
+}
+
+static int arrayMapAdd(ArrayMap* this, Array value, const char* key)
+{
+	if (this == NULL || key == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	AMNode* objectBuilder = malloc(sizeof(AMNode));
+	assert(objectBuilder);
+
+	size_t size = strlen(key) + 1ull;
+
+	*objectBuilder = (AMNode)
+	{
+		malloc(size),
+		value,
+		NULL
+	};
+	assert(objectBuilder->key);
+
+	strcpy_s(objectBuilder->key, size, key);
+
+	if (this->first != NULL)
+	{
+		AMNode* node = this->first;
+
+		while (node->next != NULL)
+		{
+			if (strcmp(node->key, key) == 0)
+			{
+				free(objectBuilder->key);
+				free(objectBuilder);
+				return error(ERROR_KEY_EXISTS);
+			}
+
+			node = node->next;
+		}
+
+		node->next = objectBuilder;
+	}
+	else
+		this->first = objectBuilder;
+
+	return SUCCESS;
+}
+
+// object functions
+static Object* objectAllocateObject(Object* this, const char* key)
+{
+	if (this == NULL || key == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	ObjectMap* map = &this->objects;
+	objectMapAdd(map, EMPTY_OBJECT, key);
+
+	Object* object = OMGetObject(map, key);
+	object->parent = this;
+
+	return object;
+}
+
+static Array* objectAllocateArray(Object* this, const char* key)
+{
+	if (this == NULL || key == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	ArrayMap* map = &this->arrays;
+	arrayMapAdd(map, EMPTY_ARRAY, key);
+
+	Array* array = AMGetArray(map, key);
+	array->parent = this;
+
+	return array;
+}
+
+static int freeObject(Object* this)
+{
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	freeObjectMap(&this->objects);
+	freeArrayMap(&this->objects);
+	SMFreeMap(&this->values);
+	this->parent = NULL;
+
+	return SUCCESS;
+}
+
+// array functions
+static Object* arrayAllocateObject(Array* this)
+{
+	if (this == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	ObjectList* list = &this->objects;
+	objectListPush(list, EMPTY_OBJECT);
+
+	Object* object = OLGetObject(list, list->length - 1);
+	object->parent = this;
+
+	return object;
+}
+
+static Array* arrayAllocateArray(Array* this)
+{
+	if (this == NULL)
+	{
+		error(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	ArrayList* list = &this->arrays;
+	arrayListPush(list, EMPTY_ARRAY);
+
+	Array* array = ALGetArray(list, list->length - 1);
+	array->parent = this;
+
+	return array;
+}
+
+static int freeArray(JSONArray* this)
+{
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	freeObjectList(&this->objects);
+	freeArrayList(&this->objects);
+	SLFreeList(&this->values);
+	this->parent = NULL;
+
+	return SUCCESS;
+}
+
+// key / value functions
+static char* allocateString(const char* JSON, size_t* cursor)
+{
+	int size = 0;
+	while (JSON[*cursor + ++size] != '\0')
+	{
+		if (JSON[*cursor + size] == '\"' && JSON[*cursor + size - 1] != '\\')
+			break;
+	}
+
+	if (JSON[*cursor + size] == '\0')
+	{
+		error(ERROR_FILE_FORMAT);
+		return NULL;
+	}
+
+	char* string = malloc(size);
+	assert(string);
+
+	int index = 0;
+
+	for (; index < size - 1; index++)
+	{
+		string[index] = JSON[*cursor + index + 1];
+	}
+
+	string[index] = '\0';
+
+	*cursor += size;
+
+	return string;
+}
+
+static char* allocateNumber(const char* JSON, size_t* cursor)
+{
+	int size = 0;
+	(*cursor)--;
+	while (JSON[*cursor + ++size] != '\0')
+	{
+		bool isBreaking = false;
+
+		switch (JSON[*cursor + size])
+		{
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			break;
+		default:
+			isBreaking = true;
+		}
+
+		if (isBreaking)
+			break;
+	}
+
+	if (JSON[*cursor + size] == '\0')
+	{
+		error(ERROR_FILE_FORMAT);
+		return NULL;
+	}
+
+	char* string = malloc(size);
+	assert(string);
+
+	int index = 0;
+
+	for (; index < size - 1; index++)
+	{
+		string[index] = JSON[*cursor + index + 1];
+	}
+
+	string[index] = '\0';
+
+	*cursor += size - 1;
+
+	return string;
+}
+
+// type functions
+static int pushType(Type** stack, Type attribute, int* depth)
+{
+	if (stack == NULL || depth == NULL)
+		return error(ERROR_PARAM_NULL);
+
 	(*depth)++;
 
-	if (*array == NULL)
+	if (*stack == NULL)
 	{
-		*array = calloc(*depth, sizeof(Type));
-		assert(*array);
+		*stack = calloc(*depth, sizeof(Type));
+		assert(*stack);
 	}
 	else
 	{
-		Type* temp = realloc(*array, sizeof(Type) * (*depth));
+		Type* temp = realloc(*stack, sizeof(Type) * (*depth));
 		assert(temp);
-		*array = temp;
+		*stack = temp;
 	}
 
-	(*array)[(*depth) - 1] = attribute;
+	(*stack)[(*depth) - 1] = attribute;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-static int popDepth(Type** array, int* depth)
+static int popType(Type** stack, int* depth)
 {
-	if (array == NULL || depth == NULL || depth == 0)
-		return EXIT_FAILURE;
+	if (stack == NULL || depth == NULL)
+		return error(ERROR_PARAM_NULL);
+
+	if (depth == 0)
+		return error(ERROR_ARRAY_EMPTY);
 
 	(*depth)--;
 
-	if (depth > 0)
+	if (*depth > 0)
 	{
-		Type* temp = realloc(*array, sizeof(Type) * (*depth));
+		Type* temp = realloc(*stack, sizeof(Type) * (*depth));
 		assert(temp);
-		*array = temp;
+		*stack = temp;
 	}
 	else
 	{
-		free(*array);
-		*array = NULL;
+		free(*stack);
+		*stack = NULL;
 	}
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-static int allocateObject(JSONObject** currentObject)
+static int error(const char* error)
 {
-	if (currentObject == NULL || *currentObject == NULL)
-		return EXIT_FAILURE;
+	if (error == NULL)
+		error = "";
 
-	(*currentObject)->objectCount++;
-
-	if ((*currentObject)->objects == NULL)
-	{
-		(*currentObject)->objects = calloc(1, sizeof(JSONObject));
-		assert((*currentObject)->objects);
-	}
-	else
-	{
-		JSONObject* temp = realloc((*currentObject)->objects, sizeof(JSONObject) * (*currentObject)->objectCount);
-		assert(temp);
-		(*currentObject)->objects = temp;
-	}
-
-	(*currentObject)->objects[(*currentObject)->objectCount - 1] = (JSONObject){ NULL, 0, SLConstruct(), *currentObject};
-	*currentObject = &(*currentObject)->objects[(*currentObject)->objectCount - 1];
-
-	return EXIT_SUCCESS;
+	printf("Error: %s\n", error);
+	pause();
+	return FAILURE;
 }
 
-static int allocateInput(char** input, size_t count)
+inline static void pause()
 {
-	if (input == NULL)
-		return EXIT_FAILURE;
-
-	if (*input == NULL)
-	{
-		*input = calloc(count + 1, sizeof(char));
-	}
-	else
-	{
-		char* temp = realloc(*input, sizeof(char) * count + 1);
-		assert(temp);
-		*input = temp;
-	}
-
-	return EXIT_SUCCESS;
-}
-
-static int setValue(char** input, JSONObject* value, int* count)
-{
-	if (input == NULL || value == NULL || count == NULL)
-		return EXIT_FAILURE;
-
-	(*input)[*count] = '\0';
-	SLPush(&value->values, *input);
-	*input = NULL;
-	*count = 0;
-
-	return EXIT_SUCCESS;
-}
-
-static int setValueTrue(JSONObject* object, int* cursor)
-{
-	if (object == NULL || cursor == NULL)
-		return EXIT_FAILURE;
-
-	char* input = calloc(sizeof("true"), sizeof(char));
-	assert(input);
-	input[0] = 't';
-	input[1] = 'r';
-	input[2] = 'u';
-	input[3] = 'e';
-	input[4] = '\0';
-	SLPush(&object->values, input);
-	(*cursor) += 3;
-
-	return EXIT_SUCCESS;
-}
-
-static int setValueFalse(JSONObject* object, int* cursor)
-{
-	if (object == NULL || cursor == NULL)
-		return EXIT_FAILURE;
-
-	char* input = calloc(sizeof("false"), sizeof(char));
-	assert(input);
-	input[0] = 'f';
-	input[1] = 'a';
-	input[2] = 'l';
-	input[3] = 's';
-	input[4] = 'e';
-	input[5] = '\0';
-	SLPush(&object->values, input);
-	(*cursor) += 4;
-
-	return EXIT_SUCCESS;
+	printf("press enter to continue . . . ");
+	int key = getchar();
+	fflush(stdin);
 }

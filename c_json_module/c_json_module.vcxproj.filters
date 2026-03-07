@@ -21,6 +21,9 @@
     <ClCompile Include="JSON.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="StringMap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="StringList.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -29,14 +32,14 @@
     <ClInclude Include="JSON.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="StringMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="StringList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="example.json">
-      <Filter>Resource Files</Filter>
-    </None>
     <None Include="Dark Souls 3 NPCs.json">
       <Filter>Resource Files</Filter>
     </None>

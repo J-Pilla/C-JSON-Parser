@@ -5,129 +5,171 @@
 #include <stdio.h>
 #include <string.h>
 
-#define EXIT_SUCCESS 0
-#define EXIT_FAILURE 1
+#define SUCCESS 0
+#define FAILURE 1
+
+#define ERROR_PARAM_NULL "Error: NULL pointer passed"
+#define ERROR_OUT_OF_BOUNDS "Error: out of bounds of the list"
+#define ERROR_LIST_EMPTY "Error: this is empty"
 
 typedef struct SLNode
 {
 	char* value;
-	struct SLNode* link;
+	struct SLNode* next;
 } SLNode;
 
-static int errorOutOfBounds();
+static int error(const char*);
+inline static void pause();
 
-int SLFreeList(StringList* list)
+int SLFreeList(StringList* this)
 {
-	if (list == NULL)
-		return EXIT_FAILURE;
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
 
-	SLNode* node = list->firstNode;
+	SLNode* node = this->first;
 
-	while (node)
+	while (node != NULL)
 	{
-		list->firstNode = list->firstNode->link;
+		this->first = this->first->next;
+		free(node->value);
 		free(node);
-		node = list->firstNode;
+		node = this->first;
 	}
 
-	list->length = 0;
+	this->length = 0;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-const char* SLGetString(StringList* list, int index)
+const char* SLGetString(StringList* this, int index)
 {
-	if (index < 0 || index >= list->length)
+	if (this == NULL)
 	{
-		errorOutOfBounds();
+		error(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
-	SLNode* node = list->firstNode;
+	if (index < 0 || index >= this->length)
+	{
+		error(ERROR_OUT_OF_BOUNDS);
+		return NULL;
+	}
+
+	SLNode* node = this->first;
 
 	for (int ctr = 0; ctr < index; ctr++)
-		node = node->link;
+	{
+		node = node->next;
+	}
 
 	return node->value;
 }
 
-int SLSetString(StringList* list, char* value, int index)
+int SLSetString(StringList* this, const char* value, int index)
 {
-	if (index < 0 || index >= list->length)
-		return errorOutOfBounds();
+	if (this == NULL || value == NULL)
+		return error(ERROR_PARAM_NULL);
 
-	SLNode* node = list->firstNode;
+	if (index < 0 || index >= this->length)
+		return error(ERROR_OUT_OF_BOUNDS);
+
+	SLNode* node = this->first;
+	size_t size = strlen(value) + 1ull;
 
 	for (int ctr = 0; ctr < index; ctr++)
-		node = node->link;
+	{
+		node = node->next;
+	}
 
-	if (node->value)
-		free(node->value);
+	free(node->value);
 
-	node->value = (char*)malloc(strlen(value) + 1);
+	node->value = malloc(size);
 	assert(node->value);
 
-	for (int index = 0; index <= strlen(value); index++)
-		node->value[index] = value[index];
+	strcpy_s(node->value, size, value);
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-int SLPush(StringList* list, char* value)
+int SLPush(StringList* this, const char* value)
 {
-	if (list == NULL)
-		return EXIT_FAILURE;
+	if (this == NULL || value == NULL)
+		return error(ERROR_PARAM_NULL);
 
 	SLNode* builder = malloc(sizeof(SLNode));
 	assert(builder);
 
-	builder->value = value;
-	builder->link = NULL;
+	size_t size = strlen(value) + 1ull;
 
-	if (list->firstNode)
+	*builder = (SLNode)
 	{
-		SLNode* node = list->firstNode;
-		while (node->link)
-			node = node->link;
+		malloc(size),
+		NULL
+	};
+	assert(builder->value);
 
-		node->link = builder;
+	strcpy_s(builder->value, size, value);
+
+	if (this->first != NULL)
+	{
+		SLNode* node = this->first;
+
+		while (node->next != NULL)
+		{
+			node = node->next;
+		}
+
+		node->next = builder;
 	}
 	else
-		list->firstNode = builder;
+		this->first = builder;
 
-	list->length++;
+	this->length++;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-int SLPop(StringList* list)
+int SLPop(StringList* this)
 {
-	if (!list->firstNode)
-		return EXIT_FAILURE;
+	if (this == NULL)
+		return error(ERROR_PARAM_NULL);
 
-	SLNode* currentNode = list->firstNode, * prevNode = NULL;
+	if (this->first == NULL)
+		return error(ERROR_LIST_EMPTY);
 
-	while (currentNode->link)
+	SLNode* currentNode = this->first, * prevNode = NULL;
+
+	while (currentNode->next != NULL)
 	{
 		prevNode = currentNode;
-		currentNode = currentNode->link;
+		currentNode = currentNode->next;
 	}
 
-	if (currentNode == list->firstNode)
-		list->firstNode = NULL;
+	if (currentNode == this->first)
+		this->first = currentNode->next;
 	else
-		prevNode->link = NULL;
+		prevNode->next = currentNode->next;
 
+	free(currentNode->value);
 	free(currentNode);
-	list->length--;
+	this->length--;
 
-	return EXIT_SUCCESS;
+	return SUCCESS;
 }
 
-static int errorOutOfBounds()
+static int error(const char* error)
 {
-	puts("Error: out of bounds of the list");
+	if (error == NULL)
+		error = "Error";
+
+	puts(error);
+	pause();
+	return FAILURE;
+}
+
+inline static void pause()
+{
 	printf("press enter to continue . . . ");
-	getchar();
-	return EXIT_FAILURE;
+	int key = getchar();
+	fflush(stdin);
 }
