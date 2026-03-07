@@ -24,12 +24,18 @@
     <ClCompile Include="StringMap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="StringList.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="JSON.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="StringMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StringList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

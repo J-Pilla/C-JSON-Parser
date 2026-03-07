@@ -56,7 +56,7 @@ typedef struct DSIIINPC
 
 int main()
 {
-	ObjectList list = ParseJSON("Dark Souls 3 NPCs.json");
+	JSONObjectList list = JSONParse("Dark Souls 3 NPCs.json");
 
 	if (list.length == 0)
 	{
@@ -66,6 +66,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	/*
 	DSIIINPC* npcs = NULL;
 	int length = list.length;
 	npcs = (DSIIINPC*)calloc(length, sizeof(DSIIINPC));
@@ -249,7 +250,7 @@ int main()
 		}
 	}
 
-	FreeObjectList(&list);
+	OLFreeList(&list);
 
 	for (int index = 0; index < length; index++)
 	{
@@ -310,6 +311,7 @@ int main()
 		printf("Faith: %d\n", npc->attributes.faith);
 		printf("Luck: %d\n\n", npc->attributes.luck);
 	}
+	*/
 	
 	puts("program ended successfully");
 	printf("press enter to exit . . . ");

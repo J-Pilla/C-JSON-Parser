@@ -2,7 +2,7 @@
 
 typedef struct StringMap
 {
-	struct SMNode* firstNode;
+	struct SMNode* first;
 } StringMap;
 
 
