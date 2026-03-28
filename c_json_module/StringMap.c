@@ -89,7 +89,7 @@ int SMSetString(StringMap* this, const char* value, const char* key)
 	node->value = malloc(length);
 	assert(node->value);
 
-	strcpy_s(node->value, length, value);
+	StringCopy(node->value, length, value);
 
 	return SUCCESS;
 }
@@ -115,8 +115,8 @@ int SMAdd(StringMap* this, const char* value, const char* key)
 	assert(builder->key);
 	assert(builder->value);
 
-	strcpy_s(builder->key, keySize, key);
-	strcpy_s(builder->value, valueSize, value);
+	StringCopy(builder->key, keySize, key);
+	StringCopy(builder->value, valueSize, value);
 
 	if (this->first != NULL)
 	{
