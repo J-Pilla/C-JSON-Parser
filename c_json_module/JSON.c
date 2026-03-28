@@ -118,13 +118,14 @@ inline static void pause();
 JSONList JSONParse(const char* file)
 {
 	char* json = fileToString(file);
-	size_t jsonLength = strlen(json);
 
 	if (json == NULL || sizeof(json) < 5)
 	{
 		error(ERROR_FILE_FORMAT);
 		return EMPTY_LIST;
 	}
+
+	size_t jsonLength = strlen(json);
 
 	// typeStack tracks the hiarchy of the JS objects
 	Type* typeStack = NULL;
@@ -621,7 +622,7 @@ static int addJsonM(Map* this, JSON value, const char* key)
 	};
 	assert(builder->key);
 
-	strcpy_s(builder->key, size, key);
+	StringCopy(builder->key, size, key);
 
 	if (this->first != NULL)
 	{
