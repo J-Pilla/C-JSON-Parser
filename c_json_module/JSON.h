@@ -1,5 +1,7 @@
 #pragma once
 
+#include "header.h"
+
 #include "StringMap.h"
 #include "StringList.h"
 
@@ -30,8 +32,8 @@ typedef struct JSONArray
 	void* parent;
 } JSONArray;
 
-JSONList JSONParse(const char* file);
-int JSONFree(JSONList* this);
+JSON_API JSONList JSONParse(const char* file);
+JSON_API int JSONFree(JSONList* this);
 
-union JSON* JSONListGet(JSONList* this, int index);
-union JSON* JSONMapGet(JSONMap* this, const char* key);
+JSON_API union JSON* JSONListGet(JSONList* this, int index);
+JSON_API union JSON* JSONMapGet(JSONMap* this, const char* key);

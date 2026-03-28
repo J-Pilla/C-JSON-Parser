@@ -86,7 +86,7 @@ int SLSetString(StringList* this, const char* value, int index)
 	node->value = malloc(size);
 	assert(node->value);
 
-	strcpy_s(node->value, size, value);
+	StringCopy(node->value, size, value);
 
 	return SUCCESS;
 }
@@ -108,7 +108,7 @@ int SLPush(StringList* this, const char* value)
 	};
 	assert(builder->value);
 
-	strcpy_s(builder->value, size, value);
+	StringCopy(builder->value, size, value);
 
 	if (this->first != NULL)
 	{
