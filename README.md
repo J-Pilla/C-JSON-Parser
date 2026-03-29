@@ -2,15 +2,15 @@
 A lightweight JSON parser for C<br>
 <i>This module does not export to C++</i>
 ## What does it do
-The JSON parser can take any correctly formatted JSON file up to any size so long as the memory is available.<br>
-It returns a JSONList, in which each node contains a JSON, which the user can use to break down into strings.
+The JSON parser can take any correctly formatted JSON file up to any size so long as the memory is available<br>
+It returns a JSONList, in which each node contains a JSON, which the user can use to break down into strings
 ## How it works
-JSON can be read as either a JSONObject or JSONArray.<br>
-JSONObjects use index maps, allowing the user to use keys to retrieve values.<br>
-JSONArrays use linked lists, requiring an index to be used to retrieve values.<br>
-Both types include collections of JSONObjects and JSONArrays, and a reference the their parent creating a hierarchy of JSON.<br>
-The usable values are contained in collections of strings (lists and maps).<br>
-The user is required to parse into number types (including booleans).
+JSON can be read as either a JSONObject or JSONArray<br>
+JSONObjects use index maps, allowing the user to use keys to retrieve values<br>
+JSONArrays use linked lists, requiring an index to be used to retrieve values<br>
+Both types include collections of JSONObjects and JSONArrays, and a reference the their parent<br>
+The usable values are contained in collections of strings (lists and maps)<br>
+The user is required to parse into number types (including booleans)
 ## Example
 ```C
 #include "JSON.h"
