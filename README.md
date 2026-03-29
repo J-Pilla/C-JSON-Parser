@@ -78,7 +78,7 @@ int main()
 		printf("press enter to exit . . . ");
 		int key = getchar();
 		fflush(stdin);
-		return 1;
+		return EXIT_FAILURE;
 	}
 
 	DSIIINPC* npcs = NULL;
@@ -309,11 +309,12 @@ int main()
 		printf("Faith: %d\n", npc->attributes.faith);
 		printf("Luck: %d\n\n", npc->attributes.luck);
 	}
-
+	
 	puts("program ended successfully");
 	printf("press enter to exit . . . ");
-	getchar();
-	return 0;
+	int key = getchar();
+	fflush(stdin);
+	return EXIT_SUCCESS;
 }
 ```
 ## Output
