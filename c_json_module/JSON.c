@@ -701,6 +701,7 @@ static char* allocateNumber(const char* JSON, size_t* cursor)
 		case '7':
 		case '8':
 		case '9':
+		case '.':
 			break;
 		default:
 			isBreaking = true;
