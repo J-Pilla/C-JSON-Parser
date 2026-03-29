@@ -18,6 +18,7 @@ The user is required to parse into number types (including booleans)
 #include <assert.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct Weapons
