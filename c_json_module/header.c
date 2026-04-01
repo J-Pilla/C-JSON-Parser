@@ -3,12 +3,12 @@
 #include <string.h>
 
 #ifdef _MSC_VER
-int StringCopy(char* destination, rsize_t size, char const* source)
+int StringCopy(char* destination, uint64_t size, char const* source)
 {
 	return strcpy_s(destination, size, source);
 }
 #else
-int StringCopy(char* destination, rsize_t sizeInBytes, char const* source)
+char* StringCopy(char* destination, uint64_t size, char const* source)
 {
 	return strncpy(destination, source, size);
 }
