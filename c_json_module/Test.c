@@ -143,28 +143,28 @@ int main()
 		size_t size = strlen(name) + 1;
 		npc->name = malloc(size);
 		assert(npc->name);
-		strcpy_s(npc->name, size, name);
+		StringCopy(npc->name, size, name);
 
 		// Armor
 		size = strlen(helm) + 1;
 		npc->armor.helm = malloc(size);
 		assert(npc->armor.helm);
-		strcpy_s(npc->armor.helm, size, helm);
+		StringCopy(npc->armor.helm, size, helm);
 
 		size = strlen(armor) + 1;
 		npc->armor.armor = malloc(size);
 		assert(npc->armor.armor);
-		strcpy_s(npc->armor.armor, size, armor);
+		StringCopy(npc->armor.armor, size, armor);
 
 		size = strlen(gauntlets) + 1;
 		npc->armor.gauntlets = malloc(size);
 		assert(npc->armor.gauntlets);
-		strcpy_s(npc->armor.gauntlets, size, gauntlets);
+		StringCopy(npc->armor.gauntlets, size, gauntlets);
 
 		size = strlen(leggings) + 1;
 		npc->armor.leggings = malloc(size);
 		assert(npc->armor.leggings);
-		strcpy_s(npc->armor.leggings, size, leggings);
+		StringCopy(npc->armor.leggings, size, leggings);
 
 		// R-hand Weapons
 		for (int index = 0; index < npc->weapons.rHandCount; index++)
@@ -174,7 +174,7 @@ int main()
 			size = strlen(weapon) + 1;
 			npc->weapons.rHand[index] = malloc(size);
 			assert(npc->weapons.rHand[index]);
-			strcpy_s(npc->weapons.rHand[index], size, weapon);
+			StringCopy(npc->weapons.rHand[index], size, weapon);
 		}
 
 		// L-hand Weapons
@@ -185,7 +185,7 @@ int main()
 			size = strlen(weapon) + 1;
 			npc->weapons.lHand[index] = malloc(size);
 			assert(npc->weapons.lHand[index]);
-			strcpy_s(npc->weapons.lHand[index], size, weapon);
+			StringCopy(npc->weapons.lHand[index], size, weapon);
 		}
 
 		// Arrows
@@ -196,7 +196,7 @@ int main()
 			size_t size = strlen(arrow) + 1;
 			npc->arrows[index] = malloc(size);
 			assert(npc->arrows[index]);
-			strcpy_s(npc->arrows[index], size, arrow);
+			StringCopy(npc->arrows[index], size, arrow);
 		}
 
 		// Bolts
@@ -207,7 +207,7 @@ int main()
 			size_t size = strlen(bolt) + 1;
 			npc->bolts[index] = malloc(size);
 			assert(npc->bolts[index]);
-			strcpy_s(npc->bolts[index], size, bolt);
+			StringCopy(npc->bolts[index], size, bolt);
 		}
 
 		// Spells
@@ -218,7 +218,7 @@ int main()
 			size_t size = strlen(spell) + 1;
 			npc->spells[index] = malloc(size);
 			assert(npc->spells[index]);
-			strcpy_s(npc->spells[index], size, spell);
+			StringCopy(npc->spells[index], size, spell);
 		}
 
 		// Items
@@ -229,7 +229,7 @@ int main()
 			size_t size = strlen(item) + 1;
 			npc->items[index] = malloc(size);
 			assert(npc->items[index]);
-			strcpy_s(npc->items[index], size, item);
+			StringCopy(npc->items[index], size, item);
 		}
 	}
 
