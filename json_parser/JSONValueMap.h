@@ -8,9 +8,9 @@ typedef struct JSONValueMap
 } JSONValueMap;
 
 
-#define EMPTY_STRING_MAP (JSONValueMap){ (struct SMNode*)0 }
+#define EMPTY_VALUE_MAP (JSONValueMap){ (struct JVMNode*)0 }
 
-inline JSONValueMap JVMNewMap() { return EMPTY_STRING_MAP; }
+inline JSONValueMap JVMNewMap() { return EMPTY_VALUE_MAP; }
 int JVMFreeMap(JSONValueMap* map);
 JSON_API const char* JVMGetValue(JSONValueMap* map, const char* key);
 JSON_API JSONType JVMGetType(JSONValueMap* map, const char* key);

@@ -9,9 +9,9 @@ typedef struct JSONValueList
 } JSONValueList;
 
 
-#define EMPTY_STRING_LIST (JSONValueList){ (struct SLNode *)0, 0 }
+#define EMPTY_VALUE_LIST (JSONValueList){ (struct JVLNode *)0, 0 }
 
-inline JSONValueList JVLNewList() { return EMPTY_STRING_LIST; }
+inline JSONValueList JVLNewList() { return EMPTY_VALUE_LIST; }
 int JVLFreeList(JSONValueList* list);
 JSON_API const char* JVLGetValue(JSONValueList* list, int index);
 JSON_API JSONType JVLGetType(JSONValueList* list, int index);
