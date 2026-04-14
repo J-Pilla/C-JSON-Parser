@@ -62,7 +62,7 @@ typedef struct JSONMapNode
 {								\
 	EMPTY_MAP,					\
 	EMPTY_MAP,					\
-	EMPTY_STRING_MAP,			\
+	EMPTY_VALUE_MAP,			\
 	NULL						\
 }
 
@@ -70,7 +70,7 @@ typedef struct JSONMapNode
 {							\
 	EMPTY_LIST,				\
 	EMPTY_LIST,				\
-	EMPTY_STRING_LIST,		\
+	EMPTY_VALUE_LIST,		\
 	NULL					\
 }
 
