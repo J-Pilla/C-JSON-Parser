@@ -16,11 +16,9 @@
 #define ERROR_FILE_FORMAT "file cannot be parsed"
 #define ERROR_FILE_CLOSE "unable to close file"
 #define ERROR_FILE_EMPTY "file empty"
-#define ERROR_OUT_OF_BOUNDS "out of bounds of the this"
-#define ERROR_LIST_EMPTY "list is empty"
-#define ERROR_KEY_NOT_FOUND "key not found in this"
-#define ERROR_KEY_EXISTS "key already exists in this"
-#define ERROR_MAP_EMPTY "map is empty"
+#define ERROR_OUT_OF_BOUNDS "out of bounds of the list"
+#define ERROR_KEY_NOT_FOUND "key not found in map"
+#define ERROR_KEY_EXISTS "key already exists in map"
 #define ERROR_ARRAY_EMPTY "array is empty"
 
 typedef struct JSONList List;
@@ -34,14 +32,14 @@ union JSON
 	JSONArray array;
 };
 
-typedef bool Type;
+typedef bool CollectionType;
 #define ARRAY 0
 #define OBJECT 1
 
-typedef struct JSONType
+typedef struct JSONCollection
 {
 	union JSON json;
-	Type type;
+	CollectionType type;
 } JSON;
 
 typedef struct JSONListNode
@@ -87,12 +85,12 @@ typedef struct JSONMapNode
 static char* fileToString(const char* const);
 
 // list functions
-static JSON* allocateJsonL(union JSON*, Type);
+static JSON* allocateJsonL(union JSON*, CollectionType);
 static JSON* getJsonL(List*, int);
 static int pushJsonL(List*, JSON);
 
 // map functions
-static JSON* allocateJsonM(union JSON*, Type, const char*);
+static JSON* allocateJsonM(union JSON*, CollectionType, const char*);
 static JSON* getJsonM(Map*, const char*);
 static int addJsonM(Map*, JSON, const char*);
 
@@ -101,8 +99,8 @@ static char* allocateString(const char*, size_t*);
 static char* allocateNumber(const char*, size_t*);
 
 // type functions
-static int pushType(Type**, Type, int*);
-static int popType(Type**, int*);
+static int pushType(CollectionType**, CollectionType, int*);
+static int popType(CollectionType**, int*);
 
 // memory cleanup
 inline static int freeJson(JSON*);
@@ -111,24 +109,20 @@ static int freeArray(Array*);
 static int freeList(List*);
 static int freeMap(Map*);
 
-// error handling
-static int error(const char*);
-inline static void pause();
-
 JSONList JSONParse(const char* file)
 {
 	char* json = fileToString(file);
 
 	if (json == NULL || sizeof(json) < 5)
 	{
-		error(ERROR_FILE_FORMAT);
+		PrintError(ERROR_FILE_FORMAT);
 		return EMPTY_LIST;
 	}
 
 	size_t jsonLength = strlen(json);
 
 	// typeStack tracks the hiarchy of the JS objects
-	Type* typeStack = NULL;
+	CollectionType* typeStack = NULL;
 	int stackDepth = 0;
 
 	// cursor walks along json
@@ -159,7 +153,7 @@ JSONList JSONParse(const char* file)
 	{
 		free(json);
 		free(typeStack);
-		error(ERROR_FILE_FORMAT);
+		PrintError(ERROR_FILE_FORMAT);
 		return EMPTY_LIST;
 	}
 
@@ -199,7 +193,7 @@ JSONList JSONParse(const char* file)
 				case '{':
 				case '[':
 				{
-					Type type = json[cursor] == '{' ? OBJECT : ARRAY;
+					CollectionType type = json[cursor] == '{' ? OBJECT : ARRAY;
 					currentJson = allocateJsonM(&currentJson->json, type, key);
 
 					if (currentJson == NULL)
@@ -231,34 +225,54 @@ JSONList JSONParse(const char* file)
 				case '9':
 				case 't':
 				case 'f':
-					if (json[cursor] == 't')
+				case 'n':
+					switch (json[cursor])
 					{
-						SMAdd(
+					case '\"':
+						JVMAdd(
+							&currentJson->json.object.values,
+							allocateString(json, &cursor),
+							STRING,
+							key
+						);
+						break;
+					case 't':
+						JVMAdd(
 							&currentJson->json.object.values,
 							"true",
+							BOOLEAN,
 							key
 						);
 						cursor += 3;
-					}
-					else if (json[cursor] == 'f')
-					{
-						SMAdd(
+						break;
+					case 'f':
+						JVMAdd(
 							&currentJson->json.object.values,
 							"false",
+							BOOLEAN,
 							key
 						);
 						cursor += 4;
-					}
-					else
-						SMAdd(
+						break;
+					case 'n':
+						JVMAdd(
 							&currentJson->json.object.values,
-							json[cursor] == '\"' ?
-							allocateString(json, &cursor) :
-							allocateNumber(json, &cursor),
+							"null",
+							null,
 							key
 						);
+						cursor += 3;
+						break;
+					default:
+						JVMAdd(
+							&currentJson->json.object.values,
+							allocateNumber(json, &cursor),
+							NUMBER,
+							key
+						);
+					}
 
-					if (SMGetString(&currentJson->json.object.values, key) == NULL)
+					if (JVMGetValue(&currentJson->json.object.values, key) == NULL)
 					{
 						free(json);
 						free(typeStack);
@@ -275,6 +289,7 @@ JSONList JSONParse(const char* file)
 			{
 				if (currentJson->json.object.parent != NULL)
 					currentJson = currentJson->json.object.parent;
+
 				popType(&typeStack, &stackDepth);
 			}
 		}
@@ -285,7 +300,7 @@ JSONList JSONParse(const char* file)
 			case '{':
 			case '[':
 			{
-				Type type = json[cursor] == '{' ? OBJECT : ARRAY;
+				CollectionType type = json[cursor] == '{' ? OBJECT : ARRAY;
 				currentJson = allocateJsonL(&currentJson->json, type);
 
 				if (currentJson == NULL)
@@ -316,31 +331,49 @@ JSONList JSONParse(const char* file)
 			case '9':
 			case 't':
 			case 'f':
-				if (json[cursor] == 't')
+			case 'n':
+				switch (json[cursor])
 				{
-					SLPush(
+				case '\"':
+					JVLPush(
 						&currentJson->json.array.values,
-						"true"
+						allocateString(json, &cursor),
+						STRING
+					);
+					break;
+				case 't':
+					JVLPush(
+						&currentJson->json.array.values,
+						"true",
+						BOOLEAN
 					);
 					cursor += 3;
-				}
-				else if (json[cursor] == 'f')
-				{
-					SLPush(
+					break;
+				case 'f':
+					JVLPush(
 						&currentJson->json.array.values,
-						"false"
+						"false",
+						BOOLEAN
 					);
 					cursor += 4;
-				}
-				else
-					SLPush(
+					break;
+				case 'n':
+					JVLPush(
 						&currentJson->json.array.values,
-						json[cursor] == '\"' ?
-						allocateString(json, &cursor) :
-						allocateNumber(json, &cursor)
+						"null",
+						null
 					);
+					cursor += 3;
+					break;
+				default:
+					JVLPush(
+						&currentJson->json.array.values,
+						allocateNumber(json, &cursor),
+						NUMBER
+					);
+				}
 
-				if (SLGetString(
+				if (JVLGetValue(
 					&currentJson->json.array.values,
 					currentJson->json.array.values.length - 1
 				) == NULL)
@@ -388,7 +421,7 @@ static char* fileToString(const char* const file)
 	if (fin == NULL)
 	{
 		printf("%s | ", file);
-		error(ERROR_FILE_OPEN);
+		PrintError(ERROR_FILE_OPEN);
 		return NULL;
 	}
 
@@ -443,7 +476,7 @@ static char* fileToString(const char* const file)
 		free(buffer);
 
 		printf("%s | ", file);
-		error(ERROR_FILE_FORMAT);
+		PrintError(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
@@ -466,16 +499,14 @@ static char* fileToString(const char* const file)
 	}
 
 	for (int index = 0; index < bufferCount; index++)
-	{
 		free(buffer[index]);
-	}
 
 	free(buffer);
 
 	if (fclose(fin) != 0)
 	{
 		printf("%s | ", file);
-		error(ERROR_FILE_CLOSE);
+		PrintError(ERROR_FILE_CLOSE);
 		return NULL;
 	}
 
@@ -483,11 +514,11 @@ static char* fileToString(const char* const file)
 }
 
 // list functions
-static JSON* allocateJsonL(union JSON* this, Type type)
+static JSON* allocateJsonL(union JSON* this, CollectionType type)
 {
 	if (this == NULL)
 	{
-		error(ERROR_PARAM_NULL);
+		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
@@ -510,13 +541,13 @@ static JSON* getJsonL(List* this, int index)
 {
 	if (this == NULL)
 	{
-		error(ERROR_PARAM_NULL);
+		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
 	if (index < 0 || index >= this->length)
 	{
-		error(ERROR_OUT_OF_BOUNDS);
+		PrintError(ERROR_OUT_OF_BOUNDS);
 		return NULL;
 	}
 
@@ -531,7 +562,7 @@ static JSON* getJsonL(List* this, int index)
 static int pushJsonL(List* this, JSON value)
 {
 	if (this == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	ListNode* builder = malloc(sizeof(ListNode));
 	assert(builder);
@@ -545,6 +576,7 @@ static int pushJsonL(List* this, JSON value)
 	if (this->first)
 	{
 		ListNode* node = this->first;
+
 		while (node->next)
 			node = node->next;
 
@@ -559,11 +591,11 @@ static int pushJsonL(List* this, JSON value)
 }
 
 // map functions
-static JSON* allocateJsonM(union JSON* this, Type type, const char* key)
+static JSON* allocateJsonM(union JSON* this, CollectionType type, const char* key)
 {
 	if (this == NULL || key == NULL)
 	{
-		error(ERROR_PARAM_NULL);
+		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
@@ -586,7 +618,7 @@ static JSON* getJsonM(Map* this, const char* key)
 {
 	if (this == NULL || key == NULL)
 	{
-		error(ERROR_PARAM_NULL);
+		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
@@ -600,14 +632,14 @@ static JSON* getJsonM(Map* this, const char* key)
 		node = node->next;
 	}
 
-	error(ERROR_KEY_NOT_FOUND);
+	PrintError(ERROR_KEY_NOT_FOUND);
 	return NULL;
 }
 
 static int addJsonM(Map* this, JSON value, const char* key)
 {
 	if (this == NULL || key == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	MapNode* builder = malloc(sizeof(MapNode));
 	assert(builder);
@@ -634,7 +666,7 @@ static int addJsonM(Map* this, JSON value, const char* key)
 			{
 				free(builder->key);
 				free(builder);
-				return error(ERROR_KEY_EXISTS);
+				return PrintError(ERROR_KEY_EXISTS);
 			}
 
 			node = node->next;
@@ -660,7 +692,7 @@ static char* allocateString(const char* JSON, size_t* cursor)
 
 	if (JSON[*cursor + size] == '\0')
 	{
-		error(ERROR_FILE_FORMAT);
+		PrintError(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
@@ -670,9 +702,7 @@ static char* allocateString(const char* JSON, size_t* cursor)
 	int index = 0;
 
 	for (; index < size - 1; index++)
-	{
 		string[index] = JSON[*cursor + index + 1];
-	}
 
 	string[index] = '\0';
 
@@ -713,7 +743,7 @@ static char* allocateNumber(const char* JSON, size_t* cursor)
 
 	if (JSON[*cursor + size] == '\0')
 	{
-		error(ERROR_FILE_FORMAT);
+		PrintError(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
@@ -723,9 +753,7 @@ static char* allocateNumber(const char* JSON, size_t* cursor)
 	int index = 0;
 
 	for (; index < size - 1; index++)
-	{
 		string[index] = JSON[*cursor + index + 1];
-	}
 
 	string[index] = '\0';
 
@@ -735,21 +763,21 @@ static char* allocateNumber(const char* JSON, size_t* cursor)
 }
 
 // type functions
-static int pushType(Type** stack, Type attribute, int* depth)
+static int pushType(CollectionType** stack, CollectionType attribute, int* depth)
 {
 	if (stack == NULL || depth == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	(*depth)++;
 
 	if (*stack == NULL)
 	{
-		*stack = calloc(*depth, sizeof(Type));
+		*stack = calloc(*depth, sizeof(CollectionType));
 		assert(*stack);
 	}
 	else
 	{
-		Type* temp = realloc(*stack, sizeof(Type) * (*depth));
+		CollectionType* temp = realloc(*stack, sizeof(CollectionType) * (*depth));
 		assert(temp);
 		*stack = temp;
 	}
@@ -759,19 +787,19 @@ static int pushType(Type** stack, Type attribute, int* depth)
 	return SUCCESS;
 }
 
-static int popType(Type** stack, int* depth)
+static int popType(CollectionType** stack, int* depth)
 {
 	if (stack == NULL || depth == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	if (depth == 0)
-		return error(ERROR_ARRAY_EMPTY);
+		return PrintError(ERROR_ARRAY_EMPTY);
 
 	(*depth)--;
 
 	if (*depth > 0)
 	{
-		Type* temp = realloc(*stack, sizeof(Type) * (*depth));
+		CollectionType* temp = realloc(*stack, sizeof(CollectionType) * (*depth));
 		assert(temp);
 		*stack = temp;
 	}
@@ -794,11 +822,11 @@ inline static int freeJson(JSON* this)
 static int freeObject(Object* this)
 {
 	if (this == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	freeMap(&this->objects);
 	freeMap(&this->arrays);
-	SMFreeMap(&this->values);
+	JVMFreeMap(&this->values);
 	this->parent = NULL;
 
 	return SUCCESS;
@@ -807,11 +835,11 @@ static int freeObject(Object* this)
 static int freeArray(Array* this)
 {
 	if (this == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	freeList(&this->objects);
 	freeList(&this->arrays);
-	SLFreeList(&this->values);
+	JVLFreeList(&this->values);
 	this->parent = NULL;
 
 	return SUCCESS;
@@ -820,7 +848,7 @@ static int freeArray(Array* this)
 static int freeList(List* this)
 {
 	if (this == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	ListNode* node = this->first;
 
@@ -840,7 +868,7 @@ static int freeList(List* this)
 static int freeMap(Map* this)
 {
 	if (this == NULL)
-		return error(ERROR_PARAM_NULL);
+		return PrintError(ERROR_PARAM_NULL);
 
 	MapNode* node = this->first;
 
@@ -854,22 +882,4 @@ static int freeMap(Map* this)
 	}
 
 	return SUCCESS;
-}
-
-// error handling
-static int error(const char* error)
-{
-	if (error == NULL)
-		error = "";
-
-	printf("Error: %s\n", error);
-	pause();
-	return FAILURE;
-}
-
-inline static void pause()
-{
-	printf("press enter to continue . . . ");
-	int key = getchar();
-	fflush(stdin);
 }
