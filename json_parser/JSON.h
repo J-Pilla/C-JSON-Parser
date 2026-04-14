@@ -1,9 +1,9 @@
 #pragma once
 
-#include "header.h"
+#include "JSONHeader.h"
 
-#include "StringMap.h"
-#include "StringList.h"
+#include "JSONValueMap.h"
+#include "JSONValueList.h"
 
 typedef struct JSONList
 {
@@ -20,7 +20,7 @@ typedef struct JSONObject
 {
 	JSONMap objects;
 	JSONMap arrays;
-	StringMap values;
+	JSONValueMap values;
 	void* parent;
 } JSONObject;
 
@@ -28,7 +28,7 @@ typedef struct JSONArray
 {
 	JSONList objects;
 	JSONList arrays;
-	StringList values;
+	JSONValueList values;
 	void* parent;
 } JSONArray;
 
