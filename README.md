@@ -68,6 +68,8 @@ typedef struct DSIIINPC
 	Attributes attributes;
 } DSIIINPC;
 
+static int pause();
+
 int main()
 {
 	JSONList list = JSONParse("Dark Souls 3 NPCs.json");
@@ -75,9 +77,7 @@ int main()
 	if (list.length == 0)
 	{
 		puts("ERROR: Failed to parse JSON");
-		printf("press enter to exit . . . ");
-		int key = getchar();
-		fflush(stdin);
+		pause();
 		return EXIT_FAILURE;
 	}
 
@@ -105,15 +105,18 @@ int main()
 		const JSONArray* items = JSONMapGet(&currentObject->arrays, "Items");
 
 		// string pointers
-		const char* name = SMGetString(&currentObject->values, "Name");
-		const char* helm = SMGetString(&armorObject->values, "Helm");
-		const char* armor = SMGetString(&armorObject->values, "Armor");
-		const char* gauntlets = SMGetString(&armorObject->values, "Gauntlets");
-		const char* leggings = SMGetString(&armorObject->values, "Leggings");
+		const char* name = JVMGetValue(&currentObject->values, "Name");
+		const char* helm = JVMGetValue(&armorObject->values, "Helm");
+		const char* armor = JVMGetValue(&armorObject->values, "Armor");
+		const char* gauntlets = JVMGetValue(&armorObject->values, "Gauntlets");
+		const char* leggings = JVMGetValue(&armorObject->values, "Leggings");
 
 		// integer assignment
-		npc->id = atoi(SMGetString(&currentObject->values, "ID"));
-		npc->level = atoi(SMGetString(&currentObject->values, "Name"));
+		if (JVMGetType(&currentObject->values, "ID") == NUMBER)
+			npc->id = atoi(JVMGetValue(&currentObject->values, "ID"));
+
+		if (JVMGetType(&currentObject->values, "Soul Level") == NUMBER)
+			npc->level = atoi(JVMGetValue(&currentObject->values, "Soul Level"));
 
 		// array count assignment
 		npc->weapons.rHandCount = rHand->values.length;
@@ -143,108 +146,125 @@ int main()
 		assert(npc->items);
 
 		// attribute assignment
-		npc->attributes.vigor = atoi(SMGetString(&attributes->values, "VIG"));
-		npc->attributes.attunement = atoi(SMGetString(&attributes->values, "ATT"));
-		npc->attributes.endurance = atoi(SMGetString(&attributes->values, "END"));
-		npc->attributes.vitality = atoi(SMGetString(&attributes->values, "VIT"));
-		npc->attributes.strength = atoi(SMGetString(&attributes->values, "STR"));
-		npc->attributes.dexterity = atoi(SMGetString(&attributes->values, "SKL"));
-		npc->attributes.intelligence = atoi(SMGetString(&attributes->values, "INT"));
-		npc->attributes.faith = atoi(SMGetString(&attributes->values, "FTH"));
-		npc->attributes.luck = atoi(SMGetString(&attributes->values, "LCK"));
+		if (JVMGetType(&attributes->values, "VIG") == NUMBER)
+			npc->attributes.vigor = atoi(JVMGetValue(&attributes->values, "VIG"));
+
+		if (JVMGetType(&attributes->values, "ATT") == NUMBER)
+			npc->attributes.attunement = atoi(JVMGetValue(&attributes->values, "ATT"));
+
+		if (JVMGetType(&attributes->values, "END") == NUMBER)
+			npc->attributes.endurance = atoi(JVMGetValue(&attributes->values, "END"));
+
+		if (JVMGetType(&attributes->values, "VIT") == NUMBER)
+			npc->attributes.vitality = atoi(JVMGetValue(&attributes->values, "VIT"));
+
+		if (JVMGetType(&attributes->values, "STR") == NUMBER)
+			npc->attributes.strength = atoi(JVMGetValue(&attributes->values, "STR"));
+
+		if (JVMGetType(&attributes->values, "SKL") == NUMBER)
+			npc->attributes.dexterity = atoi(JVMGetValue(&attributes->values, "SKL"));
+
+		if (JVMGetType(&attributes->values, "INT") == NUMBER)
+			npc->attributes.intelligence = atoi(JVMGetValue(&attributes->values, "INT"));
+
+		if (JVMGetType(&attributes->values, "FTH") == NUMBER)
+			npc->attributes.faith = atoi(JVMGetValue(&attributes->values, "FTH"));
+
+		if (JVMGetType(&attributes->values, "LCK") == NUMBER)
+			npc->attributes.luck = atoi(JVMGetValue(&attributes->values, "LCK"));
 
 		// string assignments
 		// Name
 		size_t size = strlen(name) + 1;
 		npc->name = malloc(size);
 		assert(npc->name);
-		StringCopy(npc->name, size, name);
+		strcpy_s(npc->name, size, name);
 
 		// Armor
 		size = strlen(helm) + 1;
 		npc->armor.helm = malloc(size);
 		assert(npc->armor.helm);
-		StringCopy(npc->armor.helm, size, helm);
+		strcpy_s(npc->armor.helm, size, helm);
 
 		size = strlen(armor) + 1;
 		npc->armor.armor = malloc(size);
 		assert(npc->armor.armor);
-		StringCopy(npc->armor.armor, size, armor);
+		strcpy_s(npc->armor.armor, size, armor);
 
 		size = strlen(gauntlets) + 1;
 		npc->armor.gauntlets = malloc(size);
 		assert(npc->armor.gauntlets);
-		StringCopy(npc->armor.gauntlets, size, gauntlets);
+		strcpy_s(npc->armor.gauntlets, size, gauntlets);
 
 		size = strlen(leggings) + 1;
 		npc->armor.leggings = malloc(size);
 		assert(npc->armor.leggings);
-		StringCopy(npc->armor.leggings, size, leggings);
+		strcpy_s(npc->armor.leggings, size, leggings);
 
 		// R-hand Weapons
 		for (int index = 0; index < npc->weapons.rHandCount; index++)
 		{
-			const char* weapon = SLGetString(&rHand->values, index);
+			const char* weapon = JVLGetValue(&rHand->values, index);
 
 			size = strlen(weapon) + 1;
 			npc->weapons.rHand[index] = malloc(size);
 			assert(npc->weapons.rHand[index]);
-			StringCopy(npc->weapons.rHand[index], size, weapon);
+			strcpy_s(npc->weapons.rHand[index], size, weapon);
 		}
 
 		// L-hand Weapons
 		for (int index = 0; index < npc->weapons.lHandCount; index++)
 		{
-			const char* weapon = SLGetString(&lHand->values, index);
+			const char* weapon = JVLGetValue(&lHand->values, index);
 
 			size = strlen(weapon) + 1;
 			npc->weapons.lHand[index] = malloc(size);
 			assert(npc->weapons.lHand[index]);
-			StringCopy(npc->weapons.lHand[index], size, weapon);
+			strcpy_s(npc->weapons.lHand[index], size, weapon);
 		}
 
 		// Arrows
 		for (int index = 0; index < npc->arrowCount; index++)
 		{
-			const char* arrow = SLGetString(&arrows->values, index);
+			const char* arrow = JVLGetValue(&arrows->values, index);
 
 			size_t size = strlen(arrow) + 1;
 			npc->arrows[index] = malloc(size);
 			assert(npc->arrows[index]);
-			StringCopy(npc->arrows[index], size, arrow);
+			strcpy_s(npc->arrows[index], size, arrow);
 		}
 
 		// Bolts
 		for (int index = 0; index < npc->boltCount; index++)
 		{
-			const char* bolt = SLGetString(&bolts->values, index);
+			const char* bolt = JVLGetValue(&bolts->values, index);
 
 			size_t size = strlen(bolt) + 1;
 			npc->bolts[index] = malloc(size);
 			assert(npc->bolts[index]);
-			StringCopy(npc->bolts[index], size, bolt);
+			strcpy_s(npc->bolts[index], size, bolt);
 		}
 
 		// Spells
 		for (int index = 0; index < npc->spellCount; index++)
 		{
-			const char* spell = SLGetString(&spells->values, index);
+			const char* spell = JVLGetValue(&spells->values, index);
 
 			size_t size = strlen(spell) + 1;
 			npc->spells[index] = malloc(size);
 			assert(npc->spells[index]);
-			StringCopy(npc->spells[index], size, spell);
+			strcpy_s(npc->spells[index], size, spell);
 		}
 
 		// Items
 		for (int index = 0; index < npc->itemCount; index++)
 		{
-			const char* item = SLGetString(&items->values, index);
+			const char* item = JVLGetValue(&items->values, index);
 
 			size_t size = strlen(item) + 1;
 			npc->items[index] = malloc(size);
 			assert(npc->items[index]);
-			StringCopy(npc->items[index], size, item);
+			strcpy_s(npc->items[index], size, item);
 		}
 	}
 
@@ -298,6 +318,8 @@ int main()
 			printf("%s\n", npc->items[index]);
 		}
 
+		printf("Soul Level: %d\n", npc->level);
+
 		puts("Attributes:");
 		printf("Vigor: %d\n", npc->attributes.vigor);
 		printf("Attunement: %d\n", npc->attributes.attunement);
@@ -311,10 +333,15 @@ int main()
 	}
 	
 	puts("program ended successfully");
-	printf("press enter to exit . . . ");
-	int key = getchar();
-	fflush(stdin);
+	pause();
 	return EXIT_SUCCESS;
+}
+
+static inline int pause()
+{
+	printf("press enter to continue . . . ");
+	fflush(stdin);
+	return getchar();
 }
 ```
 ## Output
@@ -339,6 +366,7 @@ Standard Bolt
 Spells:
 Items:
 Throwing Knife
+Soul Level: 40
 Attributes:
 Vigor: 21
 Attunement: 10
@@ -374,6 +402,7 @@ Estus Flask x2
 Undead Hunter Charm
 Dual Charm
 Devine Blessing x2
+Soul Level: 90
 Attributes:
 Vigor: 25
 Attunement: 18
@@ -409,6 +438,7 @@ Homing Crystal Soulmass
 Crystal Hail
 Items:
 Estus Flask x2
+Soul Level: 92
 Attributes:
 Vigor: 35
 Attunement: 18
@@ -449,6 +479,7 @@ Alluring Skull
 Charcoal Pine Resin
 Blooming Purple Moss Clump
 Ember
+Soul Level: 57
 Attributes:
 Vigor: 18
 Attunement: 15
@@ -461,5 +492,5 @@ Faith: 12
 Luck: 11
 
 program ended successfully
-press enter to exit . . .
+press enter to continue . . . 
 ```
