@@ -33,8 +33,8 @@ union JSON
 };
 
 typedef bool CollectionType;
-#define ARRAY 0
-#define OBJECT 1
+#define OBJECT 0
+#define ARRAY 1
 
 typedef struct JSONCollection
 {
@@ -95,8 +95,8 @@ static JSON* getJsonM(Map*, const char*);
 static int addJsonM(Map*, JSON, const char*);
 
 // key / value functions
-static char* allocateString(const char*, size_t*);
-static char* allocateNumber(const char*, size_t*);
+static char* allocateString(const char*, uint64_t*, size_t);
+static char* allocateNumber(const char*, uint64_t*, size_t);
 
 // type functions
 static int pushType(CollectionType**, CollectionType, int*);
@@ -113,7 +113,7 @@ JSONList JSONParse(const char* file)
 {
 	char* json = fileToString(file);
 
-	if (json == NULL || sizeof(json) < 5)
+	if (json == NULL)
 	{
 		PrintError(ERROR_FILE_FORMAT);
 		return EMPTY_LIST;
@@ -125,69 +125,63 @@ JSONList JSONParse(const char* file)
 	CollectionType* typeStack = NULL;
 	int stackDepth = 0;
 
-	// cursor walks along json
-	size_t cursor = 0;
-
-	for (; cursor < jsonLength - 1; cursor++)
+	switch (json[0])
 	{
-		// check if the file starts with an array or object
-		if (json[cursor] == '[')
-		{
-			pushType(&typeStack, ARRAY, &stackDepth);
-
-			if (stackDepth == 2)
-				break;
-		}
-		else
-		{
-			if (json[cursor] == '{')
-			{
-				pushType(&typeStack, OBJECT, &stackDepth);
-				cursor++;
-			}
-			break;
-		}
-	}
-
-	if (typeStack == NULL || typeStack[stackDepth - 1] != OBJECT)
-	{
-		free(json);
-		free(typeStack);
+	case '{':
+		pushType(&typeStack, OBJECT, &stackDepth);
+		break;
+	case '[':
+		pushType(&typeStack, ARRAY, &stackDepth);
+		break;
+	default:
 		PrintError(ERROR_FILE_FORMAT);
 		return EMPTY_LIST;
 	}
 
+	// the list being returned
 	List list = EMPTY_LIST;
 
 	// a json to build the current node
-	JSON builder = blankJson(OBJECT);
+	JSON topLevel = blankJson(typeStack[0]);
 
 	// a pointer to work on the current depth
-	JSON* currentJson = &builder;
+	JSON* currentJson = &topLevel;
 
-	// ROOT tracks the base level for objects
-	const int ROOT = stackDepth - 1;
+	// cursor walks along json
+	uint64_t cursor = 1;
 
-	for (; cursor < jsonLength - 1; cursor++)
+	for (; cursor < jsonLength; cursor++)
 	{
+		if (cursor > 2280)
+			cursor = cursor;
 		if (currentJson->type == OBJECT)
 		{
-			char* key = NULL;
-
 			if (json[cursor] == '\"') // signs a key
 			{
-				key = allocateString(json, &cursor);
-
+				char* key = allocateString(json, &cursor, jsonLength);
 				if (key == NULL)
 				{
 					free(json);
 					free(typeStack);
 					freeList(&list);
+
 					return EMPTY_LIST;
 				}
 
-				cursor += 2;
+				cursor++;
+				if (json[cursor] != ':')
+				{
+					PrintError(ERROR_FILE_FORMAT);
 
+					free(json);
+					free(typeStack);
+					freeList(&list);
+					free(key);
+
+					return EMPTY_LIST;
+				}
+
+				cursor++;
 				switch (json[cursor])
 				{
 				case '{':
@@ -202,6 +196,7 @@ JSONList JSONParse(const char* file)
 						free(typeStack);
 						freeList(&list);
 						free(key);
+
 						return EMPTY_LIST;
 					}
 
@@ -213,6 +208,7 @@ JSONList JSONParse(const char* file)
 					break;
 				} 
 				case '\"':
+				case '-':
 				case '0':
 				case '1':
 				case '2':
@@ -226,18 +222,20 @@ JSONList JSONParse(const char* file)
 				case 't':
 				case 'f':
 				case 'n':
+				{
+					int addStatus;
 					switch (json[cursor])
 					{
 					case '\"':
-						JVMAdd(
+						addStatus = JVMAdd(
 							&currentJson->json.object.values,
-							allocateString(json, &cursor),
+							allocateString(json, &cursor, jsonLength),
 							STRING,
 							key
 						);
 						break;
 					case 't':
-						JVMAdd(
+						addStatus = JVMAdd(
 							&currentJson->json.object.values,
 							"true",
 							BOOLEAN,
@@ -246,7 +244,7 @@ JSONList JSONParse(const char* file)
 						cursor += 3;
 						break;
 					case 'f':
-						JVMAdd(
+						addStatus = JVMAdd(
 							&currentJson->json.object.values,
 							"false",
 							BOOLEAN,
@@ -255,7 +253,7 @@ JSONList JSONParse(const char* file)
 						cursor += 4;
 						break;
 					case 'n':
-						JVMAdd(
+						addStatus = JVMAdd(
 							&currentJson->json.object.values,
 							"null",
 							null,
@@ -264,33 +262,39 @@ JSONList JSONParse(const char* file)
 						cursor += 3;
 						break;
 					default:
-						JVMAdd(
+						addStatus = JVMAdd(
 							&currentJson->json.object.values,
-							allocateNumber(json, &cursor),
+							allocateNumber(json, &cursor, jsonLength),
 							NUMBER,
 							key
 						);
 					}
 
-					if (JVMGetValue(&currentJson->json.object.values, key) == NULL)
+					if (addStatus == FAILURE)
 					{
 						free(json);
 						free(typeStack);
 						freeList(&list);
 						free(key);
+
 						return EMPTY_LIST;
 					}
 				}
-
+				}
 				free(key);
 				key = NULL;
 			}
 			else if (json[cursor] == '}')
 			{
-				if (currentJson->json.object.parent != NULL)
+				if (topLevel.type != ARRAY || currentJson->json.object.parent != &topLevel)
 					currentJson = currentJson->json.object.parent;
 
 				popType(&typeStack, &stackDepth);
+			}
+			else
+			{
+				PrintError(ERROR_FILE_FORMAT);
+				return EMPTY_LIST;
 			}
 		}
 		else // type == array
@@ -338,7 +342,7 @@ JSONList JSONParse(const char* file)
 				case '\"':
 					JVLPush(
 						&currentJson->json.array.values,
-						allocateString(json, &cursor),
+						allocateString(json, &cursor, jsonLength),
 						STRING
 					);
 					break;
@@ -369,7 +373,7 @@ JSONList JSONParse(const char* file)
 				default:
 					JVLPush(
 						&currentJson->json.array.values,
-						allocateNumber(json, &cursor),
+						allocateNumber(json, &cursor, jsonLength),
 						NUMBER
 					);
 				}
@@ -386,24 +390,34 @@ JSONList JSONParse(const char* file)
 				}
 				break;
 			case ']':
-				currentJson = currentJson->json.array.parent;
+				if (topLevel.type != ARRAY || currentJson->json.array.parent != &topLevel);
+					currentJson = currentJson->json.array.parent;
+
 				popType(&typeStack, &stackDepth);
+				break;
+			default:
+				PrintError(ERROR_FILE_FORMAT);
+				return EMPTY_LIST;
 			}
 		}
 
-		if (stackDepth == ROOT && json[cursor] == ',')
-		{
-			pushJsonL(&list, builder);
-
-			builder = blankJson(OBJECT);
-			currentJson = &builder;
-
-			pushType(&typeStack, OBJECT, &stackDepth);
+		if (json[cursor + 1] == ',')
 			cursor++;
+
+		if (topLevel.type == OBJECT && stackDepth == 0)
+		{
+			pushJsonL(&list, topLevel);
+		}
+		else if (topLevel.type == ARRAY && stackDepth == 1)
+		{
+			pushJsonL(&list, *currentJson);
+
+			currentJson = currentJson->type == OBJECT ?
+				currentJson->json.object.parent :
+				currentJson->json.array.parent;
 		}
 	}
 
-	pushJsonL(&list, builder);
 	free(json);
 	free(typeStack);
 	return list;
@@ -434,8 +448,7 @@ static char* fileToString(const char* const file)
 
 	size_t cursor = 0, characterCount = 0;
 
-	// while loop header
-	{
+	{ // while loop header
 		int previousInput = 0;
 		bool isInString = false;
 		while (!feof(fin))
@@ -471,13 +484,13 @@ static char* fileToString(const char* const file)
 		}
 	}
 
-	if (characterCount < 2)
+	if (characterCount < 3)
 	{
 		free(buffer[0]);
 		free(buffer);
 
 		printf("%s | ", file);
-		PrintError(ERROR_FILE_FORMAT);
+		PrintError(characterCount == 1 ? ERROR_FILE_EMPTY : ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
@@ -526,7 +539,8 @@ static JSON* allocateJsonL(union JSON* json, CollectionType type)
 	List* list = type == OBJECT ?
 		&json->array.objects : &json->array.arrays;
 
-	pushJsonL(list, blankJson(type));
+	if (pushJsonL(list, blankJson(type)) == FAILURE)
+		return NULL;
 
 	JSON* child = getJsonL(list, list->length - 1);
 
@@ -603,7 +617,8 @@ static JSON* allocateJsonM(union JSON* json, CollectionType type, const char* ke
 	Map* map = type == OBJECT ?
 		&json->object.objects : &json->object.arrays;
 
-	addJsonM(map, blankJson(type), key);
+	if (addJsonM(map, blankJson(type), key) == FAILURE)
+		return NULL;
 
 	JSON* child = getJsonM(map, key);
 
@@ -682,46 +697,59 @@ static int addJsonM(Map* map, JSON value, const char* key)
 }
 
 // key / value functions
-static char* allocateString(const char* JSON, size_t* cursor)
+static char* allocateString(const char* JSON, uint64_t* cursor, size_t length)
 {
-	int size = 0;
-	while (JSON[*cursor + ++size] != '\0')
+	if (JSON == NULL || cursor == NULL)
 	{
-		if (JSON[*cursor + size] == '\"' && JSON[*cursor + size - 1] != '\\')
+		PrintError(ERROR_PARAM_NULL);
+		return NULL;
+	}
+
+	(*cursor)++;
+	uint64_t firstChar = *cursor;
+
+	for (; *cursor < length; (*cursor)++)
+	{
+		if (JSON[*cursor] == '\"' && JSON[*cursor - 1] != '\\')
 			break;
 	}
 
-	if (JSON[*cursor + size] == '\0')
+	if (*cursor == length)
 	{
 		PrintError(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
-	char* string = malloc(size);
+	size_t charCount = *cursor - firstChar;
+	char* string = malloc(charCount + 1);
 	assert(string);
 
 	int index = 0;
 
-	for (; index < size - 1; index++)
-		string[index] = JSON[*cursor + index + 1];
+	for (; index < charCount; index++)
+		string[index] = JSON[firstChar + index];
 
-	string[index] = '\0';
-
-	*cursor += size;
+	string[charCount] = '\0';
 
 	return string;
 }
 
-static char* allocateNumber(const char* JSON, size_t* cursor)
+static char* allocateNumber(const char* JSON, uint64_t* cursor, size_t length)
 {
-	int size = 0;
-	(*cursor)--;
-	while (JSON[*cursor + ++size] != '\0')
+	if (JSON == NULL || cursor == NULL)
 	{
-		bool isBreaking = false;
+		PrintError(ERROR_PARAM_NULL);
+		return NULL;
+	}
 
-		switch (JSON[*cursor + size])
+	uint64_t firstChar = *cursor;
+	(*cursor)++;
+
+	if (JSON[firstChar] == '0')
+	{
+		switch (JSON[*cursor])
 		{
+		case '\0':
 		case '0':
 		case '1':
 		case '2':
@@ -732,35 +760,101 @@ static char* allocateNumber(const char* JSON, size_t* cursor)
 		case '7':
 		case '8':
 		case '9':
-		case '.':
-			break;
-		default:
-			isBreaking = true;
+			PrintError(ERROR_FILE_FORMAT);
+			return NULL;
 		}
-
-		if (isBreaking)
-			break;
 	}
 
-	if (JSON[*cursor + size] == '\0')
+	{ // for loop header
+		uint64_t previousChar = firstChar;
+		bool isScientific = false, hasFractional = false, isBreaking = false;
+		for (; *cursor < length; (*cursor)++)
+		{
+			switch (JSON[*cursor])
+			{
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				break;
+			case '+':
+			case '-':
+				if (JSON[previousChar] != 'E' && JSON[previousChar] != 'e')
+				{
+					PrintError(ERROR_FILE_FORMAT);
+					return NULL;
+				}
+				break;
+			case '.':
+				if (hasFractional)
+				{
+					PrintError(ERROR_FILE_FORMAT);
+					return NULL;
+				}
+				hasFractional = true;
+				break;
+			case 'E':
+			case 'e':
+				if (isScientific || JSON[previousChar] == '.')
+				{
+					PrintError(ERROR_FILE_FORMAT);
+					return NULL;
+				}
+				isScientific = true;
+				break;
+			case ',':
+			case '}':
+			case ']':
+				switch (JSON[previousChar])
+				{
+				case '+':
+				case '-':
+				case '.':
+				case 'E':
+				case 'e':
+					PrintError(ERROR_FILE_FORMAT);
+					return NULL;
+				}
+				isBreaking = true;
+				break;
+			default:
+				PrintError(ERROR_FILE_FORMAT);
+				return NULL;
+			}
+
+			if (isBreaking)
+				break;
+
+			previousChar = *cursor;
+		}
+	}
+
+	if (*cursor == length)
 	{
 		PrintError(ERROR_FILE_FORMAT);
 		return NULL;
 	}
 
-	char* string = malloc(size);
-	assert(string);
+	size_t charCount = *cursor - firstChar;
+	char* number = malloc(charCount + 1);
+	assert(number);
 
 	int index = 0;
 
-	for (; index < size - 1; index++)
-		string[index] = JSON[*cursor + index + 1];
+	for (; index < charCount; index++)
+		number[index] = JSON[firstChar + index];
 
-	string[index] = '\0';
+	number[charCount] = '\0';
 
-	*cursor += size - 1;
+	(*cursor)--;
 
-	return string;
+	return number;
 }
 
 // type functions
