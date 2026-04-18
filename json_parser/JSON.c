@@ -157,7 +157,7 @@ JSONList JSONParse(const char* file)
 		return EMPTY_LIST;
 	}
 
-	List this = EMPTY_LIST;
+	List list = EMPTY_LIST;
 
 	// a json to build the current node
 	JSON builder = blankJson(OBJECT);
@@ -182,7 +182,7 @@ JSONList JSONParse(const char* file)
 				{
 					free(json);
 					free(typeStack);
-					freeList(&this);
+					freeList(&list);
 					return EMPTY_LIST;
 				}
 
@@ -200,7 +200,7 @@ JSONList JSONParse(const char* file)
 					{
 						free(json);
 						free(typeStack);
-						freeList(&this);
+						freeList(&list);
 						free(key);
 						return EMPTY_LIST;
 					}
@@ -276,7 +276,7 @@ JSONList JSONParse(const char* file)
 					{
 						free(json);
 						free(typeStack);
-						freeList(&this);
+						freeList(&list);
 						free(key);
 						return EMPTY_LIST;
 					}
@@ -307,7 +307,7 @@ JSONList JSONParse(const char* file)
 				{
 					free(json);
 					free(typeStack);
-					freeList(&this);
+					freeList(&list);
 					return EMPTY_LIST;
 				}
 
@@ -319,6 +319,7 @@ JSONList JSONParse(const char* file)
 				break;
 			}
 			case '\"':
+			case '-':
 			case '0':
 			case '1':
 			case '2':
@@ -380,7 +381,7 @@ JSONList JSONParse(const char* file)
 				{
 					free(json);
 					free(typeStack);
-					freeList(&this);
+					freeList(&list);
 					return EMPTY_LIST;
 				}
 				break;
@@ -392,7 +393,7 @@ JSONList JSONParse(const char* file)
 
 		if (stackDepth == ROOT && json[cursor] == ',')
 		{
-			pushJsonL(&this, builder);
+			pushJsonL(&list, builder);
 
 			builder = blankJson(OBJECT);
 			currentJson = &builder;
@@ -402,17 +403,17 @@ JSONList JSONParse(const char* file)
 		}
 	}
 
-	pushJsonL(&this, builder);
+	pushJsonL(&list, builder);
 	free(json);
 	free(typeStack);
-	return this;
+	return list;
 }
 
-int JSONFree(JSONList* this) { return freeList(this); }
+int JSONFree(JSONList* list) { return freeList(list); }
 
-union JSON* JSONListGet(JSONList* this, int index) { return &getJsonL(this, index)->json; }
+union JSON* JSONListGet(JSONList* list, int index) { return &getJsonL(list, index)->json; }
 
-union JSON* JSONMapGet(JSONMap* this, const char* key) { return &getJsonM(this, key)->json; }
+union JSON* JSONMapGet(JSONMap* map, const char* key) { return &getJsonM(map, key)->json; }
 
 static char* fileToString(const char* const file)
 {
@@ -514,44 +515,44 @@ static char* fileToString(const char* const file)
 }
 
 // list functions
-static JSON* allocateJsonL(union JSON* this, CollectionType type)
+static JSON* allocateJsonL(union JSON* json, CollectionType type)
 {
-	if (this == NULL)
+	if (json == NULL)
 	{
 		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
 	List* list = type == OBJECT ?
-		&this->array.objects : &this->array.arrays;
+		&json->array.objects : &json->array.arrays;
 
 	pushJsonL(list, blankJson(type));
 
 	JSON* child = getJsonL(list, list->length - 1);
 
 	if (child->type == OBJECT)
-		child->json.object.parent = this;
+		child->json.object.parent = json;
 	else
-		child->json.array.parent = this;
+		child->json.array.parent = json;
 
 	return child;
 }
 
-static JSON* getJsonL(List* this, int index)
+static JSON* getJsonL(List* list, int index)
 {
-	if (this == NULL)
+	if (list == NULL)
 	{
 		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
-	if (index < 0 || index >= this->length)
+	if (index < 0 || index >= list->length)
 	{
 		PrintError(ERROR_OUT_OF_BOUNDS);
 		return NULL;
 	}
 
-	ListNode* currentNode = this->first;
+	ListNode* currentNode = list->first;
 
 	for (int ctr = 0; ctr < index; ctr++)
 		currentNode = currentNode->next;
@@ -559,9 +560,9 @@ static JSON* getJsonL(List* this, int index)
 	return &currentNode->value;
 }
 
-static int pushJsonL(List* this, JSON value)
+static int pushJsonL(List* list, JSON value)
 {
-	if (this == NULL)
+	if (list == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
 	ListNode* builder = malloc(sizeof(ListNode));
@@ -573,9 +574,9 @@ static int pushJsonL(List* this, JSON value)
 		NULL
 	};
 
-	if (this->first)
+	if (list->first)
 	{
-		ListNode* node = this->first;
+		ListNode* node = list->first;
 
 		while (node->next)
 			node = node->next;
@@ -583,46 +584,46 @@ static int pushJsonL(List* this, JSON value)
 		node->next = builder;
 	}
 	else
-		this->first = builder;
+		list->first = builder;
 
-	this->length++;
+	list->length++;
 
 	return SUCCESS;
 }
 
 // map functions
-static JSON* allocateJsonM(union JSON* this, CollectionType type, const char* key)
+static JSON* allocateJsonM(union JSON* json, CollectionType type, const char* key)
 {
-	if (this == NULL || key == NULL)
+	if (json == NULL || key == NULL)
 	{
 		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
 	Map* map = type == OBJECT ?
-		&this->object.objects : &this->object.arrays;
+		&json->object.objects : &json->object.arrays;
 
 	addJsonM(map, blankJson(type), key);
 
 	JSON* child = getJsonM(map, key);
 
 	if (child->type == OBJECT)
-		child->json.object.parent = this;
+		child->json.object.parent = json;
 	else
-		child->json.array.parent = this;
+		child->json.array.parent = json;
 
 	return child;
 }
 
-static JSON* getJsonM(Map* this, const char* key)
+static JSON* getJsonM(Map* map, const char* key)
 {
-	if (this == NULL || key == NULL)
+	if (map == NULL || key == NULL)
 	{
 		PrintError(ERROR_PARAM_NULL);
 		return NULL;
 	}
 
-	MapNode* node = this->first;
+	MapNode* node = map->first;
 
 	while (node != NULL)
 	{
@@ -636,9 +637,9 @@ static JSON* getJsonM(Map* this, const char* key)
 	return NULL;
 }
 
-static int addJsonM(Map* this, JSON value, const char* key)
+static int addJsonM(Map* map, JSON value, const char* key)
 {
-	if (this == NULL || key == NULL)
+	if (map == NULL || key == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
 	MapNode* builder = malloc(sizeof(MapNode));
@@ -656,9 +657,9 @@ static int addJsonM(Map* this, JSON value, const char* key)
 
 	StringCopy(builder->key, size, key);
 
-	if (this->first != NULL)
+	if (map->first != NULL)
 	{
-		MapNode* node = this->first;
+		MapNode* node = map->first;
 
 		while (node->next != NULL)
 		{
@@ -675,7 +676,7 @@ static int addJsonM(Map* this, JSON value, const char* key)
 		node->next = builder;
 	}
 	else
-		this->first = builder;
+		map->first = builder;
 
 	return SUCCESS;
 }
@@ -813,72 +814,72 @@ static int popType(CollectionType** stack, int* depth)
 }
 
 // memory cleanup
-inline static int freeJson(JSON* this)
+inline static int freeJson(JSON* json)
 {
-	return this->type == OBJECT ?
-		freeObject(&this->json) : freeArray(&this->json);
+	return json->type == OBJECT ?
+		freeObject(&json->json) : freeArray(&json->json);
 }
 
-static int freeObject(Object* this)
+static int freeObject(Object* obj)
 {
-	if (this == NULL)
+	if (obj == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
-	freeMap(&this->objects);
-	freeMap(&this->arrays);
-	JVMFreeMap(&this->values);
-	this->parent = NULL;
+	freeMap(&obj->objects);
+	freeMap(&obj->arrays);
+	JVMFreeMap(&obj->values);
+	obj->parent = NULL;
 
 	return SUCCESS;
 }
 
-static int freeArray(Array* this)
+static int freeArray(Array* array)
 {
-	if (this == NULL)
+	if (array == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
-	freeList(&this->objects);
-	freeList(&this->arrays);
-	JVLFreeList(&this->values);
-	this->parent = NULL;
+	freeList(&array->objects);
+	freeList(&array->arrays);
+	JVLFreeList(&array->values);
+	array->parent = NULL;
 
 	return SUCCESS;
 }
 
-static int freeList(List* this)
+static int freeList(List* list)
 {
-	if (this == NULL)
+	if (list == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
-	ListNode* node = this->first;
+	ListNode* node = list->first;
 
 	while (node != NULL)
 	{
-		this->first = this->first->next;
+		list->first = list->first->next;
 		freeJson(&node->value);
 		free(node);
-		node = this->first;
+		node = list->first;
 	}
 
-	this->length = 0;
+	list->length = 0;
 
 	return SUCCESS;
 }
 
-static int freeMap(Map* this)
+static int freeMap(Map* map)
 {
-	if (this == NULL)
+	if (map == NULL)
 		return PrintError(ERROR_PARAM_NULL);
 
-	MapNode* node = this->first;
+	MapNode* node = map->first;
 
 	while (node != NULL)
 	{
-		this->first = this->first->next;
+		map->first = map->first->next;
 		free(node->key);
 		freeJson(&node->value);
 		free(node);
-		node = this->first;
+		node = map->first;
 	}
 
 	return SUCCESS;

@@ -33,7 +33,7 @@ typedef struct JSONArray
 } JSONArray;
 
 JSON_API JSONList JSONParse(const char* file);
-JSON_API int JSONFree(JSONList* this);
+JSON_API int JSONFree(JSONList* list);
 
-JSON_API union JSON* JSONListGet(JSONList* this, int index);
-JSON_API union JSON* JSONMapGet(JSONMap* this, const char* key);
+JSON_API union JSON* JSONListGet(JSONList* list, int index);
+JSON_API union JSON* JSONMapGet(JSONMap* map, const char* key);
